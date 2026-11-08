@@ -16,7 +16,7 @@ unlockfgrp(Fgrp *f)
 
 	ex = f->exceed;
 	f->exceed = 0;
-	unlock(f);
+	unlock(P9_LOCKPTR(f));
 	if(ex)
 		pprint("warning: process exceeds %d file descriptors\n", ex);
 }
@@ -77,7 +77,7 @@ newfd(Chan *c)
 	Fgrp *f;
 
 	f = up->fgrp;
-	lock(f);
+	lock(P9_LOCKPTR(f));
 	fd = findfreefd(f, 0);
 	if(fd < 0){
 		unlockfgrp(f);
@@ -96,7 +96,7 @@ newfd2(int fd[2], Chan *c[2])
 	Fgrp *f;
 
 	f = up->fgrp;
-	lock(f);
+	lock(P9_LOCKPTR(f));
 	fd[0] = findfreefd(f, 0);
 	if(fd[0] < 0){
 		unlockfgrp(f);
@@ -125,14 +125,14 @@ fdtochan(int fd, int mode, int chkmnt, int iref)
 	c = 0;
 	f = up->fgrp;
 
-	lock(f);
+	lock(P9_LOCKPTR(f));
 	if(fd<0 || f->nfd<=fd || (c = f->fd[fd])==0) {
-		unlock(f);
+		unlock(P9_LOCKPTR(f));
 		error(Ebadfd);
 	}
 	if(iref)
-		incref(c);
-	unlock(f);
+		incref(P9_REFPTR(c));
+	unlock(P9_LOCKPTR(f));
 
 	if(chkmnt && (c->flag&CMSG)) {
 		if(iref)
@@ -233,7 +233,7 @@ sysdup(ulong *arg)
 	c = fdtochan(arg[0], -1, 0, 1);
 	fd = arg[1];
 	if(fd != -1){
-		lock(f);
+		lock(P9_LOCKPTR(f));
 		if(fd<0 || growfd(f, fd)<0) {
 			unlockfgrp(f);
 			cclose(c);
@@ -288,16 +288,16 @@ fdclose(int fd, int flag)
 	Chan *c;
 	Fgrp *f = up->fgrp;
 
-	lock(f);
+	lock(P9_LOCKPTR(f));
 	c = f->fd[fd];
 	if(c == 0){
 		/* can happen for users with shared fd tables */
-		unlock(f);
+		unlock(P9_LOCKPTR(f));
 		return;
 	}
 	if(flag){
 		if(c==0 || !(c->flag&flag)){
-			unlock(f);
+			unlock(P9_LOCKPTR(f));
 			return;
 		}
 	}
@@ -306,7 +306,7 @@ fdclose(int fd, int flag)
 		for(i=fd; --i>=0 && f->fd[i]==0; )
 			f->maxfd = i;
 
-	unlock(f);
+	unlock(P9_LOCKPTR(f));
 	cclose(c);
 }
 
@@ -680,10 +680,10 @@ read(ulong *arg, vlong *offp)
 	}else
 		nnn = nn = devtab[c->type]->read(c, p, n, off);
 
-	lock(c);
+	lock(P9_LOCKPTR(c));
 	c->devoffset += nn;
 	c->offset += nnn;
-	unlock(c);
+	unlock(P9_LOCKPTR(c));
 
 	poperror();
 	cclose(c);
@@ -701,12 +701,20 @@ long
 syspread(ulong *arg)
 {
 	vlong v;
-	va_list list;
 
-	/* use varargs to guarantee alignment of vlong */
+	/*
+	 * AMD64 syscall slots are 64 bits wide, including pread/pwrite's
+	 * signed vlong offset.  The original 386 varargs-on-arg-vector
+	 * trick is invalid with register-based SysV AMD64 varargs.
+	 */
+#if defined(__clang__) && defined(__x86_64__)
+	v = (vlong)arg[3];
+#else
+	va_list list;
 	va_start(list, arg[2]);
 	v = va_arg(list, vlong);
 	va_end(list);
+#endif
 
 	if(v == ~0ULL)
 		return read(arg, nil);
@@ -726,9 +734,9 @@ write(ulong *arg, vlong *offp)
 	c = fdtochan(arg[0], OWRITE, 1, 1);
 	if(waserror()) {
 		if(offp == nil){
-			lock(c);
+			lock(P9_LOCKPTR(c));
 			c->offset -= n;
-			unlock(c);
+			unlock(P9_LOCKPTR(c));
 		}
 		cclose(c);
 		nexterror();
@@ -740,10 +748,10 @@ write(ulong *arg, vlong *offp)
 	n = arg[2];
 
 	if(offp == nil){	/* use and maintain channel's offset */
-		lock(c);
+		lock(P9_LOCKPTR(c));
 		off = c->offset;
 		c->offset += n;
-		unlock(c);
+		unlock(P9_LOCKPTR(c));
 	}else
 		off = *offp;
 
@@ -753,9 +761,9 @@ write(ulong *arg, vlong *offp)
 	m = devtab[c->type]->write(c, (void*)arg[1], n, off);
 
 	if(offp == nil && m < n){
-		lock(c);
+		lock(P9_LOCKPTR(c));
 		c->offset -= n - m;
-		unlock(c);
+		unlock(P9_LOCKPTR(c));
 	}
 
 	poperror();
@@ -774,12 +782,20 @@ long
 syspwrite(ulong *arg)
 {
 	vlong v;
-	va_list list;
 
-	/* use varargs to guarantee alignment of vlong */
+	/*
+	 * AMD64 syscall slots are 64 bits wide, including pread/pwrite's
+	 * signed vlong offset.  The original 386 varargs-on-arg-vector
+	 * trick is invalid with register-based SysV AMD64 varargs.
+	 */
+#if defined(__clang__) && defined(__x86_64__)
+	v = (vlong)arg[3];
+#else
+	va_list list;
 	va_start(list, arg[2]);
 	v = va_arg(list, vlong);
 	va_end(list);
+#endif
 
 	if(v == ~0ULL)
 		return write(arg, nil);
@@ -824,14 +840,14 @@ sseek(ulong *arg)
 	case 1:
 		if(c->qid.type & QTDIR)
 			error(Eisdir);
-		lock(c);	/* lock for read/write update */
+		lock(P9_LOCKPTR(c));	/* lock for read/write update */
 		off = o.v + c->offset;
 		if(off < 0){
-			unlock(c);
+			unlock(P9_LOCKPTR(c));
 			error(Enegoff);
 		}
 		c->offset = off;
-		unlock(c);
+		unlock(P9_LOCKPTR(c));
 		break;
 
 	case 2:

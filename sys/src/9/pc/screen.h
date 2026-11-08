@@ -1,8 +1,20 @@
 typedef struct Cursor Cursor;
 typedef struct Cursorinfo Cursorinfo;
 struct Cursorinfo {
-	Cursor;
-	Lock;
+#if defined(__clang__) && defined(__x86_64__)
+    union {
+        Cursor Cursor;
+        struct {
+            Point offset;
+            uchar clr[2*16];
+            uchar set[2*16];
+        };
+    };
+    Lock Lock;
+#else
+    Cursor;
+    Lock;
+#endif
 };
 
 /* devmouse.c */

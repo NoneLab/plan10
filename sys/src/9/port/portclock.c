@@ -13,7 +13,7 @@ enum {
 
 struct Timers
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Timer	*head;
 };
 
@@ -99,19 +99,19 @@ timeradd(Timer *nt)
 	vlong when;
 
 	/* Must lock Timer struct before Timers struct */
-	ilock(nt);
+	ilock(P9_LOCKPTR(nt));
 	if(tt = nt->tt){
-		ilock(tt);
+		ilock(P9_LOCKPTR(tt));
 		tdel(nt);
-		iunlock(tt);
+		iunlock(P9_LOCKPTR(tt));
 	}
 	tt = &timers[m->machno];
-	ilock(tt);
+	ilock(P9_LOCKPTR(tt));
 	when = tadd(tt, nt);
 	if(when)
 		timerset(when);
-	iunlock(tt);
-	iunlock(nt);
+	iunlock(P9_LOCKPTR(tt));
+	iunlock(P9_LOCKPTR(nt));
 }
 
 
@@ -121,15 +121,15 @@ timerdel(Timer *dt)
 	Timers *tt;
 	uvlong when;
 
-	ilock(dt);
+	ilock(P9_LOCKPTR(dt));
 	if(tt = dt->tt){
-		ilock(tt);
+		ilock(P9_LOCKPTR(tt));
 		when = tdel(dt);
 		if(when && tt == &timers[m->machno])
 			timerset(tt->head->twhen);
-		iunlock(tt);
+		iunlock(P9_LOCKPTR(tt));
 	}
-	iunlock(dt);
+	iunlock(P9_LOCKPTR(dt));
 }
 
 void
@@ -179,7 +179,7 @@ timerintr(Ureg *u, Tval)
 	now = fastticks(nil);
 	if(now == 0)
 		panic("timerintr: zero fastticks()");
-	ilock(tt);
+	ilock(P9_LOCKPTR(tt));
 	count = Maxtimerloops;
 	while((t = tt->head) != nil){
 		/*
@@ -191,7 +191,7 @@ timerintr(Ureg *u, Tval)
 		when = t->twhen;
 		if(when > now){
 			timerset(when);
-			iunlock(tt);
+			iunlock(P9_LOCKPTR(tt));
 			if(callhzclock)
 				hzclock(u);
 			return;
@@ -200,12 +200,12 @@ timerintr(Ureg *u, Tval)
 		assert(t->tt == tt);
 		t->tt = nil;
 		fcallcount[m->machno]++;
-		iunlock(tt);
+		iunlock(P9_LOCKPTR(tt));
 		if(t->tf)
 			(*t->tf)(u, t);
 		else
 			callhzclock++;
-		ilock(tt);
+		ilock(P9_LOCKPTR(tt));
 		if(t->tmode == Tperiodic)
 			tadd(tt, t);
 		if (--count <= 0) {
@@ -215,7 +215,7 @@ timerintr(Ureg *u, Tval)
 				"counter\n");
 		}
 	}
-	iunlock(tt);
+	iunlock(P9_LOCKPTR(tt));
 }
 
 void
@@ -257,11 +257,11 @@ addclock0link(void (*f)(void), int ms)
 	nt->tt = nil;
 	nt->tf = (void (*)(Ureg*, Timer*))f;
 
-	ilock(&timers[0]);
+	ilock(P9_LOCKPTR(&timers[0]));
 	when = tadd(&timers[0], nt);
 	if(when)
 		timerset(when);
-	iunlock(&timers[0]);
+	iunlock(P9_LOCKPTR(&timers[0]));
 	return nt;
 }
 

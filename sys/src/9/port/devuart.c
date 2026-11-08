@@ -26,7 +26,7 @@ static int uartndir;
 static Timer *uarttimer;
 
 struct Uartalloc {
-	Lock;
+	P9_EMBED_LOCK;
 	Uart *elist;	/* list of enabled interfaces */
 } uartalloc;
 
@@ -86,7 +86,7 @@ uartenable(Uart *p)
 	 * use ilock because uartclock can otherwise interrupt here
 	 * and would hang on an attempt to lock uartalloc.
 	 */
-	ilock(&uartalloc);
+	ilock(P9_LOCKPTR(&uartalloc));
 	for(l = &uartalloc.elist; *l; l = &(*l)->elist){
 		if(*l == p)
 			break;
@@ -96,7 +96,7 @@ uartenable(Uart *p)
 		uartalloc.elist = p;
 	}
 	p->enabled = 1;
-	iunlock(&uartalloc);
+	iunlock(P9_LOCKPTR(&uartalloc));
 
 	return p;
 }
@@ -110,7 +110,7 @@ uartdisable(Uart *p)
 		return;
 	(*p->phys->disable)(p);
 
-	ilock(&uartalloc);
+	ilock(P9_LOCKPTR(&uartalloc));
 	for(l = &uartalloc.elist; *l; l = &(*l)->elist){
 		if(*l == p){
 			*l = p->elist;
@@ -118,34 +118,34 @@ uartdisable(Uart *p)
 		}
 	}
 	p->enabled = 0;
-	iunlock(&uartalloc);
+	iunlock(P9_LOCKPTR(&uartalloc));
 }
 
 void
 uartmouse(Uart* p, int (*putc)(Queue*, int), int setb1200)
 {
-	qlock(p);
+	qlock(P9_QLPTR(p));
 	if(p->opens++ == 0 && uartenable(p) == nil){
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 		error(Enodev);
 	}
 	if(setb1200)
 		uartctl(p, "b1200");
 	p->putc = putc;
 	p->special = 1;
-	qunlock(p);
+	qunlock(P9_QLPTR(p));
 }
 
 void
 uartsetmouseputc(Uart* p, int (*putc)(Queue*, int))
 {
-	qlock(p);
+	qlock(P9_QLPTR(p));
 	if(p->opens == 0 || p->special == 0){
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 		error(Enodev);
 	}
 	p->putc = putc;
-	qunlock(p);
+	qunlock(P9_QLPTR(p));
 }
 
 static void
@@ -277,13 +277,13 @@ uartopen(Chan *c, int omode)
 	case Nctlqid:
 	case Ndataqid:
 		p = uart[NETID(c->qid.path)];
-		qlock(p);
+		qlock(P9_QLPTR(p));
 		if(p->opens++ == 0 && uartenable(p) == nil){
-			qunlock(p);
+			qunlock(P9_QLPTR(p));
 			c->flag &= ~COPEN;
 			error(Enodev);
 		}
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 		break;
 	}
 
@@ -328,7 +328,7 @@ uartclose(Chan *c)
 	case Ndataqid:
 	case Nctlqid:
 		p = uart[NETID(c->qid.path)];
-		qlock(p);
+		qlock(P9_QLPTR(p));
 		if(--(p->opens) == 0){
 			qclose(p->iq);
 			ilock(&p->rlock);
@@ -346,7 +346,7 @@ uartclose(Chan *c)
 			uartdisable(p);
 			p->dcd = p->dsr = p->dohup = 0;
 		}
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 		break;
 	}
 }
@@ -503,15 +503,15 @@ uartwrite(Chan *c, void *buf, long n, vlong)
 
 	switch(NETTYPE(c->qid.path)){
 	case Ndataqid:
-		qlock(p);
+		qlock(P9_QLPTR(p));
 		if(waserror()){
-			qunlock(p);
+			qunlock(P9_QLPTR(p));
 			nexterror();
 		}
 
 		n = qwrite(p->oq, buf, n);
 
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 		poperror();
 		break;
 	case Nctlqid:
@@ -520,9 +520,9 @@ uartwrite(Chan *c, void *buf, long n, vlong)
 			error(Enomem);
 		memmove(cmd, buf, n);
 		cmd[n] = 0;
-		qlock(p);
+		qlock(P9_QLPTR(p));
 		if(waserror()){
-			qunlock(p);
+			qunlock(P9_QLPTR(p));
 			free(cmd);
 			nexterror();
 		}
@@ -531,7 +531,7 @@ uartwrite(Chan *c, void *buf, long n, vlong)
 		if(uartctl(p, cmd) < 0)
 			error(Ebadarg);
 
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 		poperror();
 		free(cmd);
 		break;
@@ -720,7 +720,7 @@ uartclock(void)
 {
 	Uart *p;
 
-	ilock(&uartalloc);
+	ilock(P9_LOCKPTR(&uartalloc));
 	for(p = uartalloc.elist; p; p = p->elist){
 
 		/* this hopefully amortizes cost of qproduce to many chars */
@@ -747,7 +747,7 @@ uartclock(void)
 			iunlock(&p->tlock);
 		}
 	}
-	iunlock(&uartalloc);
+	iunlock(P9_LOCKPTR(&uartalloc));
 }
 
 /*

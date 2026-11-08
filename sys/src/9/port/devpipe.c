@@ -10,7 +10,7 @@
 typedef struct Pipe	Pipe;
 struct Pipe
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	Pipe	*next;
 	int	ref;
 	ulong	path;
@@ -21,7 +21,7 @@ struct Pipe
 
 struct
 {
-	Lock;
+	P9_EMBED_LOCK;
 	ulong	path;
 } pipealloc;
 
@@ -78,9 +78,9 @@ pipeattach(char *spec)
 		exhausted("memory");
 	}
 
-	lock(&pipealloc);
+	lock(P9_LOCKPTR(&pipealloc));
 	p->path = ++pipealloc.path;
-	unlock(&pipealloc);
+	unlock(P9_LOCKPTR(&pipealloc));
 	p->perm = pipedir[Qdata0].perm;
 
 	mkqid(&c->qid, NETQID(2*p->path, Qdir), 0, QTDIR);
@@ -132,7 +132,7 @@ pipewalk(Chan *c, Chan *nc, char **name, int nname)
 	wq = devwalk(c, nc, name, nname, pipedir, NPIPEDIR, pipegen);
 	if(wq != nil && wq->clone != nil && wq->clone != c){
 		p = c->aux;
-		qlock(p);
+		qlock(P9_QLPTR(p));
 		p->ref++;
 		if(c->flag & COPEN){
 			print("channel open in pipewalk\n");
@@ -145,7 +145,7 @@ pipewalk(Chan *c, Chan *nc, char **name, int nname)
 				break;
 			}
 		}
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 	}
 	return wq;
 }
@@ -225,7 +225,7 @@ pipeopen(Chan *c, int omode)
 	}
 
 	p = c->aux;
-	qlock(p);
+	qlock(P9_QLPTR(p));
 	switch(NETTYPE(c->qid.path)){
 	case Qdata0:
 		p->qref[0]++;
@@ -234,7 +234,7 @@ pipeopen(Chan *c, int omode)
 		p->qref[1]++;
 		break;
 	}
-	qunlock(p);
+	qunlock(P9_QLPTR(p));
 
 	c->mode = openmode(omode);
 	c->flag |= COPEN;
@@ -249,7 +249,7 @@ pipeclose(Chan *c)
 	Pipe *p;
 
 	p = c->aux;
-	qlock(p);
+	qlock(P9_QLPTR(p));
 
 	if(c->flag & COPEN){
 		/*
@@ -287,12 +287,12 @@ pipeclose(Chan *c)
 	 */
 	p->ref--;
 	if(p->ref == 0){
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 		free(p->q[0]);
 		free(p->q[1]);
 		free(p);
 	} else
-		qunlock(p);
+		qunlock(P9_QLPTR(p));
 }
 
 static long

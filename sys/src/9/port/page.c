@@ -67,7 +67,7 @@ pageinit(void)
 static void
 pageunchain(Page *p)
 {
-	if(canlock(&palloc))
+	if(canlock(P9_LOCKPTR(&palloc)))
 		panic("pageunchain (palloc %p)", &palloc);
 	if(p->prev)
 		p->prev->next = p->next;
@@ -84,7 +84,7 @@ pageunchain(Page *p)
 void
 pagechaintail(Page *p)
 {
-	if(canlock(&palloc))
+	if(canlock(P9_LOCKPTR(&palloc)))
 		panic("pagechaintail");
 	if(palloc.tail) {
 		p->prev = palloc.tail;
@@ -102,7 +102,7 @@ pagechaintail(Page *p)
 void
 pagechainhead(Page *p)
 {
-	if(canlock(&palloc))
+	if(canlock(P9_LOCKPTR(&palloc)))
 		panic("pagechainhead");
 	if(palloc.head) {
 		p->next = palloc.head;
@@ -125,7 +125,7 @@ newpage(int clear, Segment **s, ulong va)
 	uchar ct;
 	int i, hw, dontalloc, color;
 
-	lock(&palloc);
+	lock(P9_LOCKPTR(&palloc));
 	color = getpgcolor(va);
 	hw = swapalloc.highwater;
 	for(;;) {
@@ -134,7 +134,7 @@ newpage(int clear, Segment **s, ulong va)
 		if(up->kp && palloc.freecount > 0)
 			break;
 
-		unlock(&palloc);
+		unlock(P9_LOCKPTR(&palloc));
 		dontalloc = 0;
 		if(s && *s) {
 			qunlock(&((*s)->lk));
@@ -162,7 +162,7 @@ newpage(int clear, Segment **s, ulong va)
 		if(dontalloc)
 			return 0;
 
-		lock(&palloc);
+		lock(P9_LOCKPTR(&palloc));
 	}
 
 	/* First try for our colour */
@@ -179,7 +179,7 @@ newpage(int clear, Segment **s, ulong va)
 
 	pageunchain(p);
 
-	lock(p);
+	lock(P9_LOCKPTR(p));
 	if(p->ref != 0)
 		panic("newpage: p->ref %d != 0", p->ref);
 
@@ -189,8 +189,8 @@ newpage(int clear, Segment **s, ulong va)
 	p->modref = 0;
 	for(i = 0; i < MAXMACH; i++)
 		p->cachectl[i] = ct;
-	unlock(p);
-	unlock(&palloc);
+	unlock(P9_LOCKPTR(p));
+	unlock(P9_LOCKPTR(&palloc));
 
 	if(clear) {
 		k = kmap(p);
@@ -215,15 +215,15 @@ putpage(Page *p)
 		return;
 	}
 
-	lock(&palloc);
-	lock(p);
+	lock(P9_LOCKPTR(&palloc));
+	lock(P9_LOCKPTR(p));
 
 	if(p->ref == 0)
 		panic("putpage");
 
 	if(--p->ref > 0) {
-		unlock(p);
-		unlock(&palloc);
+		unlock(P9_LOCKPTR(p));
+		unlock(P9_LOCKPTR(&palloc));
 		return;
 	}
 
@@ -235,8 +235,8 @@ putpage(Page *p)
 	if(palloc.r.p != 0)
 		wakeup(&palloc.r);
 
-	unlock(p);
-	unlock(&palloc);
+	unlock(P9_LOCKPTR(p));
+	unlock(P9_LOCKPTR(&palloc));
 }
 
 Page*
@@ -244,21 +244,21 @@ auxpage(void)
 {
 	Page *p;
 
-	lock(&palloc);
+	lock(P9_LOCKPTR(&palloc));
 	p = palloc.head;
 	if(palloc.freecount < swapalloc.highwater) {
-		unlock(&palloc);
+		unlock(P9_LOCKPTR(&palloc));
 		return 0;
 	}
 	pageunchain(p);
 
-	lock(p);
+	lock(P9_LOCKPTR(p));
 	if(p->ref != 0)
 		panic("auxpage");
 	p->ref++;
 	uncachepage(p);
-	unlock(p);
-	unlock(&palloc);
+	unlock(P9_LOCKPTR(p));
+	unlock(P9_LOCKPTR(&palloc));
 
 	return p;
 }
@@ -295,17 +295,17 @@ retry:
 	 *  To avoid deadlock, we have to drop
 	 *  our locks and try again.
 	 */
-	if(!canlock(&palloc)){
-		unlock(p);
+	if(!canlock(P9_LOCKPTR(&palloc))){
+		unlock(P9_LOCKPTR(p));
 		if(up)
 			sched();
-		lock(p);
+		lock(P9_LOCKPTR(p));
 		goto retry;
 	}
 
 	/* No freelist cache when memory is very low */
 	if(palloc.freecount < swapalloc.highwater) {
-		unlock(&palloc);
+		unlock(P9_LOCKPTR(&palloc));
 		uncachepage(p);
 		return 1;
 	}
@@ -317,7 +317,7 @@ retry:
 
 	/* No page of the correct color */
 	if(np == 0) {
-		unlock(&palloc);
+		unlock(P9_LOCKPTR(&palloc));
 		uncachepage(p);
 		return 1;
 	}
@@ -335,8 +335,8 @@ retry:
 * before they remove it, the page will have a nonzero ref
 * once they finally lock(np).
 */
-	lock(np);
-	unlock(&palloc);
+	lock(P9_LOCKPTR(np));
+	unlock(P9_LOCKPTR(&palloc));
 
 	/* Cache the new version */
 	uncachepage(np);
@@ -344,7 +344,7 @@ retry:
 	np->daddr = p->daddr;
 	copypage(p, np);
 	cachepage(np, p->image);
-	unlock(np);
+	unlock(P9_LOCKPTR(np));
 	uncachepage(p);
 
 	return 0;
@@ -398,7 +398,7 @@ cachepage(Page *p, Image *i)
 	if(p->image)
 		panic("cachepage");
 
-	incref(i);
+	incref(P9_REFPTR(i));
 	lock(&palloc.hashlock);
 	p->image = i;
 	l = &pghash(p->daddr);
@@ -416,14 +416,14 @@ cachedel(Image *i, ulong daddr)
 	l = &pghash(daddr);
 	for(f = *l; f; f = f->hash) {
 		if(f->image == i && f->daddr == daddr) {
-			lock(f);
+			lock(P9_LOCKPTR(f));
 			if(f->image == i && f->daddr == daddr){
 				*l = f->hash;
 				putimage(f->image);
 				f->image = 0;
 				f->daddr = 0;
 			}
-			unlock(f);
+			unlock(P9_LOCKPTR(f));
 			break;
 		}
 		l = &f->hash;
@@ -441,17 +441,17 @@ lookpage(Image *i, ulong daddr)
 		if(f->image == i && f->daddr == daddr) {
 			unlock(&palloc.hashlock);
 
-			lock(&palloc);
-			lock(f);
+			lock(P9_LOCKPTR(&palloc));
+			lock(P9_LOCKPTR(f));
 			if(f->image != i || f->daddr != daddr) {
-				unlock(f);
-				unlock(&palloc);
+				unlock(P9_LOCKPTR(f));
+				unlock(P9_LOCKPTR(&palloc));
 				return 0;
 			}
 			if(++f->ref == 1)
 				pageunchain(f);
-			unlock(&palloc);
-			unlock(f);
+			unlock(P9_LOCKPTR(&palloc));
+			unlock(P9_LOCKPTR(f));
 
 			return f;
 		}
@@ -475,9 +475,9 @@ ptecpy(Pte *old)
 			if(onswap(*src))
 				dupswap(*src);
 			else {
-				lock(*src);
+				lock(P9_LOCKPTR(*src));
 				(*src)->ref++;
-				unlock(*src);
+				unlock(P9_LOCKPTR(*src));
 			}
 			new->last = dst;
 			*dst = *src;
@@ -521,9 +521,9 @@ freepte(Segment *s, Pte *p)
 			pt = *pg;
 			if(pt == 0)
 				continue;
-			lock(pt);
+			lock(P9_LOCKPTR(pt));
 			ref = --pt->ref;
-			unlock(pt);
+			unlock(P9_LOCKPTR(pt));
 			if(ref == 0)
 				free(pt);
 		}
@@ -565,7 +565,7 @@ checkpagerefs(void)
 	 * be useful.
 	 */
 	s = splhi();
-	lock(&palloc);
+	lock(P9_LOCKPTR(&palloc));
 	countpagerefs(ref, 0);
 	portcountpagerefs(ref, 0);
 	nwrong = 0;
@@ -581,7 +581,7 @@ checkpagerefs(void)
 	countpagerefs(ref, 1);
 	portcountpagerefs(ref, 1);
 	iprint("%lud mistakes found\n", nwrong);
-	unlock(&palloc);
+	unlock(P9_LOCKPTR(&palloc));
 	splx(s);
 }
 

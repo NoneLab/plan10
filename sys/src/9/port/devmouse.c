@@ -31,8 +31,21 @@ struct Mousestate
 
 struct Mouseinfo
 {
-	Lock;
-	Mousestate;
+#if defined(__clang__) && defined(__x86_64__)
+    P9_EMBED_LOCK;
+    union {
+        Mousestate _p9_mousestate;
+        struct {
+            Point xy;
+            int buttons;
+            ulong counter;
+            ulong msec;
+        };
+    };
+#else
+    P9_EMBED_LOCK;
+    Mousestate;
+#endif
 	int	dx;
 	int	dy;
 	int	track;		/* dx & dy updated */
@@ -40,10 +53,18 @@ struct Mouseinfo
 	ulong	lastcounter;	/* value when /dev/mouse read */
 	ulong	lastresize;
 	ulong	resize;
-	Rendez	r;
-	Ref;
-	QLock;
-	int	open;
+    Rendez r;
+#if defined(__clang__) && defined(__x86_64__)
+    union {
+        Ref Ref;
+        struct { Lock _p9_mouse_ref_lock; long ref; };
+    };
+    QLock QLock;
+#else
+    P9_EMBED_REF;
+    P9_EMBED_QLOCK;
+#endif
+    int open;
 	int	acceleration;
 	int	maxacc;
 	Mousestate	queue[16];	/* circular buffer of click events */
@@ -291,7 +312,11 @@ mouseread(Chan *c, void *va, long n, vlong off)
 			while(!canlock(&cursor))
 				tsleep(&up->sleep, return0, 0, TK2MS(1));
 
-			m = mouse.Mousestate;
+			#if defined(__clang__) && defined(__x86_64__)
+            m = mouse._p9_mousestate;
+#else
+            m = mouse.Mousestate;
+#endif
 			unlock(&cursor);
 		}
 
@@ -599,7 +624,11 @@ mousetrack(int dx, int dy, int b, int msec)
 	 * queue any more events until a reader polls the mouse.
 	 */
 	if(!mouse.qfull && lastb != b) {	/* add to ring */
-		mouse.queue[mouse.wi] = mouse.Mousestate;
+#if defined(__clang__) && defined(__x86_64__)
+        mouse.queue[mouse.wi] = mouse._p9_mousestate;
+#else
+        mouse.queue[mouse.wi] = mouse.Mousestate;
+#endif
 		if(++mouse.wi == nelem(mouse.queue))
 			mouse.wi = 0;
 		if(mouse.wi == mouse.ri)

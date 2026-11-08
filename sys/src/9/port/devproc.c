@@ -157,6 +157,9 @@ static Lock tlock;
 static int topens;
 static int tproduced, tconsumed;
 void (*proctrace)(Proc*, int, vlong);
+#if defined(__clang__) && defined(__x86_64__)
+static void _proctrace_abi(Proc*, int, vlong);
+#endif
 
 extern int unfair;
 
@@ -285,6 +288,15 @@ _proctrace(Proc* p, Tevent etype, vlong ts)
 	tproduced++;
 }
 
+#if defined(__clang__) && defined(__x86_64__)
+/* C11 forbids treating enum-typed callbacks as int-parameter callbacks. */
+static void
+_proctrace_abi(Proc *p, int ev, vlong ts)
+{
+    _proctrace(p, (Tevent)ev, ts);
+}
+#endif
+
 static void
 procinit(void)
 {
@@ -357,7 +369,11 @@ procopen(Chan *c, int omode)
 				error(Enomem);
 			tproduced = tconsumed = 0;
 		}
-		proctrace = _proctrace;
+#if defined(__clang__) && defined(__x86_64__)
+        proctrace = _proctrace_abi;
+#else
+        proctrace = _proctrace;
+#endif
 		unlock(&tlock);
 		poperror();
 
@@ -567,9 +583,9 @@ procfds(Proc *p, char *va, int count, long offset)
 		qunlock(&p->debug);
 		return 0;
 	}
-	lock(f);
+	lock(P9_LOCKPTR(f));
 	if(waserror()){
-		unlock(f);
+		unlock(P9_LOCKPTR(f));
 		qunlock(&p->debug);
 		nexterror();
 	}
@@ -594,7 +610,7 @@ procfds(Proc *p, char *va, int count, long offset)
 		n += procfdprint(c, i, w, a+n, count-n);
 		offset = procoffset(offset, a, &n);
 	}
-	unlock(f);
+	unlock(P9_LOCKPTR(f));
 	qunlock(&p->debug);
 	poperror();
 
@@ -1163,17 +1179,17 @@ proctext(Chan *c, Proc *p)
 	if(p->state==Dead)
 		error(Eprocdied);
 
-	lock(s);
+	lock(P9_LOCKPTR(s));
 	i = s->image;
 	if(i == 0) {
-		unlock(s);
+		unlock(P9_LOCKPTR(s));
 		error(Eprocdied);
 	}
-	unlock(s);
+	unlock(P9_LOCKPTR(s));
 
-	lock(i);
+	lock(P9_LOCKPTR(i));
 	if(waserror()) {
-		unlock(i);
+		unlock(P9_LOCKPTR(i));
 		nexterror();
 	}
 
@@ -1181,7 +1197,7 @@ proctext(Chan *c, Proc *p)
 	if(tc == 0)
 		error(Eprocdied);
 
-	if(incref(tc) == 1 || (tc->flag&COPEN) == 0 || tc->mode!=OREAD) {
+	if(incref(P9_REFPTR(tc)) == 1 || (tc->flag&COPEN) == 0 || tc->mode!=OREAD) {
 		cclose(tc);
 		error(Eprocdied);
 	}
@@ -1191,7 +1207,7 @@ proctext(Chan *c, Proc *p)
 		error(Eprocdied);
 	}
 
-	unlock(i);
+	unlock(P9_LOCKPTR(i));
 	poperror();
 
 	return tc;
@@ -1234,11 +1250,11 @@ procctlcloseone(Proc *p, Fgrp *f, int fd)
 	if(c == nil)
 		return;
 	f->fd[fd] = nil;
-	unlock(f);
+	unlock(P9_LOCKPTR(f));
 	qunlock(&p->debug);
 	cclose(c);
 	qlock(&p->debug);
-	lock(f);
+	lock(P9_LOCKPTR(f));
 }
 
 void
@@ -1251,14 +1267,14 @@ procctlclosefiles(Proc *p, int all, int fd)
 	if(f == nil)
 		error(Eprocdied);
 
-	lock(f);
+	lock(P9_LOCKPTR(f));
 	f->ref++;
 	if(all)
 		for(i = 0; i < f->maxfd; i++)
 			procctlcloseone(p, f, i);
 	else
 		procctlcloseone(p, f, fd);
-	unlock(f);
+	unlock(P9_LOCKPTR(f));
 	closefgrp(f);
 }
 
@@ -1561,7 +1577,7 @@ txt2data(Proc *p, Segment *s)
 
 	ps = newseg(SG_DATA, s->base, s->size);
 	ps->image = s->image;
-	incref(ps->image);
+	incref(P9_REFPTR(ps->image));
 	ps->fstart = s->fstart;
 	ps->flen = s->flen;
 	ps->flushme = 1;
@@ -1589,7 +1605,7 @@ data2txt(Segment *s)
 
 	ps = newseg(SG_TEXT, s->base, s->size);
 	ps->image = s->image;
-	incref(ps->image);
+	incref(P9_REFPTR(ps->image));
 	ps->fstart = s->fstart;
 	ps->flen = s->flen;
 	ps->flushme = 1;

@@ -16,7 +16,7 @@ enum
 
 struct
 {
-	Lock;
+	P9_EMBED_LOCK;
 	int	fid;
 	Chan	*free;
 	Chan	*list;
@@ -98,9 +98,9 @@ incref(Ref *r)
 {
 	long x;
 
-	lock(r);
+	lock(P9_LOCKPTR(r));
 	x = ++r->ref;
-	unlock(r);
+	unlock(P9_LOCKPTR(r));
 	return x;
 }
 
@@ -109,9 +109,9 @@ decref(Ref *r)
 {
 	long x;
 
-	lock(r);
+	lock(P9_LOCKPTR(r));
 	x = --r->ref;
-	unlock(r);
+	unlock(P9_LOCKPTR(r));
 	if(x < 0)
 		panic("decref pc=%#p", getcallerpc(&r));
 
@@ -238,19 +238,19 @@ newchan(void)
 {
 	Chan *c;
 
-	lock(&chanalloc);
+	lock(P9_LOCKPTR(&chanalloc));
 	c = chanalloc.free;
 	if(c != 0)
 		chanalloc.free = c->next;
-	unlock(&chanalloc);
+	unlock(P9_LOCKPTR(&chanalloc));
 
 	if(c == nil){
 		c = smalloc(sizeof(Chan));
-		lock(&chanalloc);
+		lock(P9_LOCKPTR(&chanalloc));
 		c->fid = ++chanalloc.fid;
 		c->link = chanalloc.list;
 		chanalloc.list = c;
-		unlock(&chanalloc);
+		unlock(P9_LOCKPTR(&chanalloc));
 	}
 
 	/* if you get an error before associating with a dev,
@@ -329,7 +329,7 @@ copypath(Path *p)
 	for(i=0; i<pp->mlen; i++){
 		pp->mtpt[i] = p->mtpt[i];
 		if(pp->mtpt[i])
-			incref(pp->mtpt[i]);
+			incref(P9_REFPTR(pp->mtpt[i]));
 	}
 
 	return pp;
@@ -348,7 +348,7 @@ pathclose(Path *p)
 		DBG(" %p", p->mtpt[i]);
 	DBG("\n");
 
-	if(decref(p))
+	if(decref(P9_REFPTR(p)))
 		return;
 	decref(&npath);
 	free(p->s);
@@ -444,7 +444,7 @@ addelem(Path *p, char *s, Chan *from)
 		DBG("addelem %s %s => add %p\n", p->s, s, from);
 		p->mtpt[p->mlen++] = from;
 		if(from)
-			incref(from);
+			incref(P9_REFPTR(from));
 	}
 	return p;
 }
@@ -480,10 +480,10 @@ chanfree(Chan *c)
 	pathclose(c->path);
 	c->path = nil;
 
-	lock(&chanalloc);
+	lock(P9_LOCKPTR(&chanalloc));
 	c->next = chanalloc.free;
 	chanalloc.free = c;
-	unlock(&chanalloc);
+	unlock(P9_LOCKPTR(&chanalloc));
 }
 
 void
@@ -493,7 +493,7 @@ cclose(Chan *c)
 		panic("cclose %#p", getcallerpc(&c));
 
 	DBG("cclose %p name=%s ref=%ld\n", c, c->path->s, c->ref);
-	if(decref(c))
+	if(decref(P9_REFPTR(c)))
 		return;
 
 	if(!waserror()){
@@ -525,7 +525,7 @@ ccloseq(Chan *c)
 
 	DBG("ccloseq %p name=%s ref=%ld\n", c, c->path->s, c->ref);
 
-	if(decref(c))
+	if(decref(P9_REFPTR(c)))
 		return;
 
 	lock(&clunkq.l);
@@ -638,7 +638,7 @@ newmhead(Chan *from)
 	mh = smalloc(sizeof(Mhead));
 	mh->ref = 1;
 	mh->from = from;
-	incref(from);
+	incref(P9_REFPTR(from));
 	return mh;
 }
 
@@ -846,7 +846,7 @@ cclone(Chan *c)
 	free(wq);
 	nc->path = c->path;
 	if(c->path)
-		incref(c->path);
+		incref(P9_REFPTR(c->path));
 	return nc;
 }
 
@@ -869,14 +869,14 @@ findmount(Chan **cp, Mhead **mp, int type, int dev, Qid qid)
 		if(eqchantdqid(m->from, type, dev, qid, 1)){
 			runlock(&pg->ns);
 			if(mp != nil){
-				incref(m);
+				incref(P9_REFPTR(m));
 				if(*mp != nil)
 					putmhead(*mp);
 				*mp = m;
 			}
 			if(*cp != nil)
 				cclose(*cp);
-			incref(m->mount->to);
+			incref(P9_REFPTR(m->mount->to));
 			*cp = m->mount->to;
 			runlock(&m->lock);
 			return 1;
@@ -908,7 +908,7 @@ domount(Chan **cp, Mhead **mp, Path **path)
 		else{
 			lc = &p->mtpt[p->mlen-1];
 DBG("domount %p %s => add %p (was %p)\n", p, p->s, (*mp)->from, p->mtpt[p->mlen-1]);
-			incref((*mp)->from);
+			incref(P9_REFPTR((*mp)->from));
 			if(*lc)
 				cclose(*lc);
 			*lc = (*mp)->from;
@@ -972,9 +972,9 @@ walk(Chan **cp, char **names, int nnames, int nomount, int *nerror)
 	Walkqid *wq;
 
 	c = *cp;
-	incref(c);
+	incref(P9_REFPTR(c));
 	path = c->path;
-	incref(path);
+	incref(P9_REFPTR(path));
 	mh = nil;
 
 	/*
@@ -1344,7 +1344,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 	switch(name[0]){
 	case '/':
 		c = up->slash;
-		incref(c);
+		incref(P9_REFPTR(c));
 		break;
 	
 	case '#':
@@ -1387,7 +1387,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 
 	default:
 		c = up->dot;
-		incref(c);
+		incref(P9_REFPTR(c));
 		break;
 	}
 
@@ -1470,7 +1470,7 @@ namec(char *aname, int amode, int omode, ulong perm)
 	Open:
 		/* save&update the name; domount might change c */
 		path = c->path;
-		incref(path);
+		incref(P9_REFPTR(path));
 		m = nil;
 		if(!nomount)
 			domount(&c, &m, &path);
@@ -1599,7 +1599,7 @@ if(c->umh != nil){
 				cnew = createdir(cnew, m);
 			else{
 				cnew = c;
-				incref(cnew);
+				incref(P9_REFPTR(cnew));
 			}
 
 			/*
@@ -1611,7 +1611,7 @@ if(c->umh != nil){
 			cnew = cunique(cnew);
 			pathclose(cnew->path);
 			cnew->path = c->path;
-			incref(cnew->path);
+			incref(P9_REFPTR(cnew->path));
 
 			devtab[cnew->type]->create(cnew, e.elems[e.nelems-1], omode&~(OEXCL|OCEXEC), perm);
 			poperror();
@@ -1788,7 +1788,7 @@ isdir(Chan *c)
 void
 putmhead(Mhead *m)
 {
-	if(m && decref(m) == 0){
+	if(m && decref(P9_REFPTR(m)) == 0){
 		m->mount = (Mount*)0xCafeBeef;
 		free(m);
 	}

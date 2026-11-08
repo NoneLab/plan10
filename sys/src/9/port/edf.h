@@ -35,7 +35,7 @@ struct Edf {
 	Proc		*testnext;
 	/* other */
 	ushort		flags;
-	Timer;
+	P9_EMBED_TIMER;
 	/* Stats */
 	long		edfused;
 	long		extraused;

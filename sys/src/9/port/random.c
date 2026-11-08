@@ -8,7 +8,7 @@
 
 struct Rb
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	Rendez	producer;
 	Rendez	consumer;
 	ulong	randomcount;
@@ -103,11 +103,11 @@ randomread(void *xp, ulong n)
 	p = xp;
 
 	if(waserror()){
-		qunlock(&rb);
+		qunlock(P9_QLPTR(&rb));
 		nexterror();
 	}
 
-	qlock(&rb);
+	qlock(P9_QLPTR(&rb));
 	for(e = p + n; p < e; ){
 		if(rb.wp == rb.rp){
 			rb.wakeme = 1;
@@ -130,7 +130,7 @@ randomread(void *xp, ulong n)
 		else
 			rb.rp = rb.rp+1;
 	}
-	qunlock(&rb);
+	qunlock(P9_QLPTR(&rb));
 	poperror();
 
 	wakeup(&rb.producer);

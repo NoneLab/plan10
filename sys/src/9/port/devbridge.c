@@ -93,7 +93,7 @@ struct Centry
 
 struct Bridge
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	int	nport;
 	Port	*port[Maxport];
 	Centry	cache[CacheSize];

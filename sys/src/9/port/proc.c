@@ -23,7 +23,7 @@ static Ref	pidalloc;
 
 static struct Procalloc
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Proc*	ht[128];
 	Proc*	arena;
 	Proc*	free;
@@ -94,8 +94,8 @@ schedinit(void)		/* never returns */
 			up->qnext = procalloc.free;
 			procalloc.free = up;
 
-			unlock(&palloc);
-			unlock(&procalloc);
+			unlock(P9_LOCKPTR(&palloc));
+			unlock(P9_LOCKPTR(&procalloc));
 			break;
 		}
 		up->mach = nil;
@@ -139,8 +139,13 @@ sched(void)
 		if(up->nlocks.ref)
 		if(up->state != Moribund)
 		if(up->delaysched < 20
+		#ifdef __clang__
+		|| palloc._p9_lock.p == up
+		|| procalloc._p9_lock.p == up){
+#else
 		|| palloc.Lock.p == up
 		|| procalloc.Lock.p == up){
+#endif
 			up->delaysched++;
  			delayedscheds++;
 			return;
@@ -342,7 +347,7 @@ queueproc(Schedq *rq, Proc *p)
 	int pri;
 
 	pri = rq - runq;
-	lock(runq);
+	lock(P9_LOCKPTR(runq));
 	p->priority = pri;
 	p->rnext = 0;
 	if(rq->tail)
@@ -353,7 +358,7 @@ queueproc(Schedq *rq, Proc *p)
 	rq->n++;
 	nrdy++;
 	runvec |= 1<<pri;
-	unlock(runq);
+	unlock(P9_LOCKPTR(runq));
 }
 
 /*
@@ -364,7 +369,7 @@ dequeueproc(Schedq *rq, Proc *tp)
 {
 	Proc *l, *p;
 
-	if(!canlock(runq))
+	if(!canlock(P9_LOCKPTR(runq)))
 		return nil;
 
 	/*
@@ -382,7 +387,7 @@ dequeueproc(Schedq *rq, Proc *tp)
 	 *  p->mach==0 only when process state is saved
 	 */
 	if(p == 0 || p->mach){
-		unlock(runq);
+		unlock(P9_LOCKPTR(runq));
 		return nil;
 	}
 	if(p->rnext == 0)
@@ -398,7 +403,7 @@ dequeueproc(Schedq *rq, Proc *tp)
 	if(p->state != Ready)
 		print("dequeueproc %s %lud %s\n", p->text, p->pid, statename[p->state]);
 
-	unlock(runq);
+	unlock(P9_LOCKPTR(runq));
 	return p;
 }
 
@@ -569,13 +574,13 @@ canpage(Proc *p)
 	int ok = 0;
 
 	splhi();
-	lock(runq);
+	lock(P9_LOCKPTR(runq));
 	/* Only reliable way to see if we are Running */
 	if(p->mach == 0) {
 		p->newtlb = 1;
 		ok = 1;
 	}
-	unlock(runq);
+	unlock(P9_LOCKPTR(runq));
 	spllo();
 
 	return ok;
@@ -589,10 +594,10 @@ noprocpanic(char *msg)
 	 * clearing our bit in machs avoids calling exit(0) from hzclock()
 	 * on this processor.
 	 */
-	lock(&active);
+	lock(P9_LOCKPTR(&active));
 	active.machs &= ~(1<<m->machno);
 	active.exiting = 1;
-	unlock(&active);
+	unlock(P9_LOCKPTR(&active));
 
 	procdump();
 	delay(1000);
@@ -605,9 +610,9 @@ newproc(void)
 	char msg[64];
 	Proc *p;
 
-	lock(&procalloc);
+	lock(P9_LOCKPTR(&procalloc));
 	while((p = procalloc.free) == nil) {
-		unlock(&procalloc);
+		unlock(P9_LOCKPTR(&procalloc));
 
 		snprint(msg, sizeof msg, "no procs; %s forking",
 			up? up->text: "kernel");
@@ -620,10 +625,10 @@ newproc(void)
 		if(getconf("*noprocspersist") == nil)
 			noprocpanic(msg);
 		resrcwait(msg);
-		lock(&procalloc);
+		lock(P9_LOCKPTR(&procalloc));
 	}
 	procalloc.free = p->qnext;
-	unlock(&procalloc);
+	unlock(P9_LOCKPTR(&procalloc));
 
 	p->state = Scheding;
 	p->psstate = "New";
@@ -769,7 +774,7 @@ sleep(Rendez *r, int (*f)(void*), void *arg)
 	if(up->nlocks.ref)
 		print("process %lud sleeps with %lud locks held, last lock %#p locked at pc %#lux, sleep called from %#p\n",
 			up->pid, up->nlocks.ref, up->lastlock, up->lastlock->pc, getcallerpc(&r));
-	lock(r);
+	lock(P9_LOCKPTR(r));
 	lock(&up->rlock);
 	if(r->p){
 		print("double sleep called from %#p, %lud %lud\n", getcallerpc(&r), r->p->pid, up->pid);
@@ -791,7 +796,7 @@ sleep(Rendez *r, int (*f)(void*), void *arg)
 		 */
 		r->p = nil;
 		unlock(&up->rlock);
-		unlock(r);
+		unlock(P9_LOCKPTR(r));
 	} else {
 		/*
 		 *  now we are committed to
@@ -818,7 +823,7 @@ sleep(Rendez *r, int (*f)(void*), void *arg)
 			 *  here to go to sleep (i.e. stop Running)
 			 */
 			unlock(&up->rlock);
-			unlock(r);
+			unlock(P9_LOCKPTR(r));
 			gotolabel(&m->sched);
 		}
 	}
@@ -858,7 +863,7 @@ tsleep(Rendez *r, int (*fn)(void*), void *arg, ulong ms)
 {
 	if (up->tt){
 		print("tsleep: timer active: mode %d, tf %#p\n", up->tmode, up->tf);
-		timerdel(up);
+		timerdel(P9_TIMERPTR(up));
 	}
 	up->tns = MS2NS(ms);
 	up->tf = twakeup;
@@ -866,15 +871,15 @@ tsleep(Rendez *r, int (*fn)(void*), void *arg, ulong ms)
 	up->ta = up;
 	up->trend = r;
 	up->tfn = fn;
-	timeradd(up);
+	timeradd(P9_TIMERPTR(up));
 
 	if(waserror()){
-		timerdel(up);
+		timerdel(P9_TIMERPTR(up));
 		nexterror();
 	}
 	sleep(r, tfn, arg);
 	if(up->tt)
-		timerdel(up);
+		timerdel(P9_TIMERPTR(up));
 	up->twhen = 0;
 	poperror();
 }
@@ -893,7 +898,7 @@ wakeup(Rendez *r)
 
 	s = splhi();
 
-	lock(r);
+	lock(P9_LOCKPTR(r));
 	p = r->p;
 
 	if(p != nil){
@@ -907,7 +912,7 @@ wakeup(Rendez *r)
 		ready(p);
 		unlock(&p->rlock);
 	}
-	unlock(r);
+	unlock(P9_LOCKPTR(r));
 
 	splx(s);
 
@@ -955,13 +960,13 @@ postnote(Proc *p, int dolock, char *n, int flag)
 			break;	/* no */
 
 		/* try for the second lock */
-		if(canlock(r)){
+		if(canlock(P9_LOCKPTR(r))){
 			if(p->state != Wakeme || r->p != p)
 				panic("postnote: state %d %d %d", r->p != p, p->r != r, p->state);
 			p->r = nil;
 			r->p = nil;
 			ready(p);
-			unlock(r);
+			unlock(P9_LOCKPTR(r));
 			break;
 		}
 
@@ -977,7 +982,7 @@ postnote(Proc *p, int dolock, char *n, int flag)
 		return ret;
 
 	/* Try and pull out of a rendezvous */
-	lock(p->rgrp);
+	lock(P9_LOCKPTR(p->rgrp));
 	if(p->state == Rendezvous) {
 		p->rendval = ~0;
 		l = &REND(p->rgrp, p->rendtag);
@@ -990,7 +995,7 @@ postnote(Proc *p, int dolock, char *n, int flag)
 		}
 		ready(p);
 	}
-	unlock(p->rgrp);
+	unlock(P9_LOCKPTR(p->rgrp));
 	return ret;
 }
 
@@ -1000,7 +1005,7 @@ postnote(Proc *p, int dolock, char *n, int flag)
 #define	NBROKEN 4
 struct
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	int	n;
 	Proc	*p[NBROKEN];
 }broken;
@@ -1008,14 +1013,14 @@ struct
 void
 addbroken(Proc *p)
 {
-	qlock(&broken);
+	qlock(P9_QLPTR(&broken));
 	if(broken.n == NBROKEN) {
 		ready(broken.p[0]);
 		memmove(&broken.p[0], &broken.p[1], sizeof(Proc*)*(NBROKEN-1));
 		--broken.n;
 	}
 	broken.p[broken.n++] = p;
-	qunlock(&broken);
+	qunlock(P9_QLPTR(&broken));
 
 	edfstop(up);
 	p->state = Broken;
@@ -1028,7 +1033,7 @@ unbreak(Proc *p)
 {
 	int b;
 
-	qlock(&broken);
+	qlock(P9_QLPTR(&broken));
 	for(b=0; b < broken.n; b++)
 		if(broken.p[b] == p) {
 			broken.n--;
@@ -1037,7 +1042,7 @@ unbreak(Proc *p)
 			ready(p);
 			break;
 		}
-	qunlock(&broken);
+	qunlock(P9_QLPTR(&broken));
 }
 
 int
@@ -1045,14 +1050,14 @@ freebroken(void)
 {
 	int i, n;
 
-	qlock(&broken);
+	qlock(P9_QLPTR(&broken));
 	n = broken.n;
 	for(i=0; i<n; i++) {
 		ready(broken.p[i]);
 		broken.p[i] = 0;
 	}
 	broken.n = 0;
-	qunlock(&broken);
+	qunlock(P9_QLPTR(&broken));
 	return n;
 }
 
@@ -1074,7 +1079,7 @@ pexit(char *exitstr, int freemem)
 		free(up->syscalltrace);
 	up->alarm = 0;
 	if (up->tt)
-		timerdel(up);
+		timerdel(P9_TIMERPTR(up));
 	pt = proctrace;
 	if(pt)
 		pt(up, SDead, 0);
@@ -1194,8 +1199,8 @@ pexit(char *exitstr, int freemem)
 	qunlock(&up->debug);
 
 	/* Sched must not loop for these locks */
-	lock(&procalloc);
-	lock(&palloc);
+	lock(P9_LOCKPTR(&procalloc));
+	lock(P9_LOCKPTR(&palloc));
 
 	edfstop(up);
 	up->state = Moribund;
@@ -1379,7 +1384,7 @@ kproc(char *name, void (*func)(void *), void *arg)
 	p->slash = up->slash;
 	p->dot = up->dot;
 	if(p->dot)
-		incref(p->dot);
+		incref(P9_REFPTR(p->dot));
 
 	memmove(p->note, up->note, sizeof(p->note));
 	p->nnote = up->nnote;
@@ -1398,7 +1403,7 @@ kproc(char *name, void (*func)(void *), void *arg)
 	if(kpgrp == 0)
 		kpgrp = newpgrp();
 	p->pgrp = kpgrp;
-	incref(kpgrp);
+	incref(P9_REFPTR(kpgrp));
 
 	memset(p->time, 0, sizeof(p->time));
 	p->time[TReal] = MACHP(0)->ticks;
@@ -1592,10 +1597,10 @@ pidhash(Proc *p)
 	int h;
 
 	h = p->pid % nelem(procalloc.ht);
-	lock(&procalloc);
+	lock(P9_LOCKPTR(&procalloc));
 	p->pidhash = procalloc.ht[h];
 	procalloc.ht[h] = p;
-	unlock(&procalloc);
+	unlock(P9_LOCKPTR(&procalloc));
 }
 
 static void
@@ -1605,13 +1610,13 @@ pidunhash(Proc *p)
 	Proc **l;
 
 	h = p->pid % nelem(procalloc.ht);
-	lock(&procalloc);
+	lock(P9_LOCKPTR(&procalloc));
 	for(l = &procalloc.ht[h]; *l != nil; l = &(*l)->pidhash)
 		if(*l == p){
 			*l = p->pidhash;
 			break;
 		}
-	unlock(&procalloc);
+	unlock(P9_LOCKPTR(&procalloc));
 }
 
 int
@@ -1623,12 +1628,12 @@ procindex(ulong pid)
 
 	s = -1;
 	h = pid % nelem(procalloc.ht);
-	lock(&procalloc);
+	lock(P9_LOCKPTR(&procalloc));
 	for(p = procalloc.ht[h]; p != nil; p = p->pidhash)
 		if(p->pid == pid){
 			s = p - procalloc.arena;
 			break;
 		}
-	unlock(&procalloc);
+	unlock(P9_LOCKPTR(&procalloc));
 	return s;
 }

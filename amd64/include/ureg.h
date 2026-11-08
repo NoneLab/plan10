@@ -22,7 +22,10 @@ struct Ureg {
 
 	u64int	type;
 	u64int	error;				/* error code (or zero) */
-	u64int	ip;				/* pc */
+	union {
+		u64int ip;		/* machine instruction pointer */
+		u64int pc;		/* port compatibility spelling */
+	};
 	u64int	cs;				/* old context */
 	u64int	flags;				/* old flags */
 	u64int	sp;				/* sp */

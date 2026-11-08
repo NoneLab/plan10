@@ -182,8 +182,8 @@ struct Qtree
  */
 struct Qio
 {
-	QLock;			/* for the entire I/O process */
-	Rendez;			/* wait for completion */
+	P9_EMBED_QLOCK;			/* for the entire I/O process */
+	P9_EMBED_RENDEZ;			/* wait for completion */
 	Qh*	qh;		/* Td list (field const after init) */
 	int	usbid;		/* usb address for endpoint/device */
 	int	toggle;		/* Tddata0/Tddata1 */
@@ -197,15 +197,34 @@ struct Qio
 
 struct Ctlio
 {
-	Qio;			/* a single Qio for each RPC */
+#if defined(__clang__) && defined(__x86_64__)
+    union {
+        Qio _p9_qio;
+        struct {
+            QLock _p9_qio_lock;
+            Rendez _p9_qio_rendez;
+            Qh *qh;
+            int usbid;
+            int toggle;
+            int tok;
+            ulong iotime;
+            int debug;
+            char *err;
+            char *tag;
+            ulong bw;
+        };
+    };
+#else
+    Qio;                        /* a single Qio for each RPC */
+#endif
 	uchar*	data;		/* read from last ctl req. */
 	int	ndata;		/* number of bytes read */
 };
 
 struct Isoio
 {
-	QLock;
-	Rendez;			/* wait for space/completion/errors */
+	P9_EMBED_QLOCK;
+	P9_EMBED_RENDEZ;			/* wait for space/completion/errors */
 	int	usbid;		/* address used for device/endpoint */
 	int	tok;		/* Tdtokin or Tdtokout */
 	int	state;		/* Qrun -> Qdone -> Qrun... -> Qclose */
@@ -236,7 +255,7 @@ struct Isoio
 
 struct Edpool
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Ed*	free;
 	int	nalloc;
 	int	ninuse;

@@ -158,7 +158,7 @@ typedef struct {
 
 typedef struct Srb Srb;
 struct Srb {
-	Rendez;
+	P9_EMBED_RENDEZ;
 	Srb	*next;
 	int	shared;	/* Srb shared with kproc (don't free) */
 	ulong	ticksent;
@@ -188,7 +188,12 @@ typedef struct {
 
 typedef struct Aoedev Aoedev;
 struct Aoedev {
-	QLock;
+#ifdef __clang__
+    /* Srb *tail is unrelated to QLock's Proc *tail. */
+    QLock _p9_qlock;
+#else
+    QLock;
+#endif
 	Aoedev	*next;
 
 	ulong	vers;
@@ -230,22 +235,27 @@ struct Aoedev {
 #pragma	varargck type	"æ"	Aoedev*
 
 static struct {
-	Lock;
-	QLock;
-	Rendez;
-	char	buf[Eventlen*Nevents];
+	P9_EMBED_LOCK;
+	P9_EMBED_QLOCK;
+#ifdef __clang__
+    /* events also embeds an independent Lock; do not flatten both. */
+    Rendez _p9_rendez;
+#else
+    Rendez;
+#endif
+    char buf[Eventlen*Nevents];
 	char	*rp;
 	char	*wp;
 } events;
 
 static struct {
-	RWlock;
+	P9_EMBED_RWLOCK;
 	int	nd;
 	Aoedev	*d;
 } devs;
 
 static struct {
-	Lock;
+	P9_EMBED_LOCK;
 	int	reader[Nnetlink];	/* reader is running. */
 	Rendez	rendez[Nnetlink];	/* confirm exit. */
 	Netlink	nl[Nnetlink];

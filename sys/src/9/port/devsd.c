@@ -1401,7 +1401,11 @@ sdwstat(Chan* c, uchar* dp, int n)
 		pp = &unit->part[PART(c->qid)];
 		if(unit->vers+pp->vers != c->qid.vers)
 			error(Enonexist);
-		perm = &pp->SDperm;
+#if defined(__clang__) && defined(__x86_64__)
+        perm = &pp->_p9_sdperm;
+#else
+        perm = &pp->SDperm;
+#endif
 		break;
 	}
 

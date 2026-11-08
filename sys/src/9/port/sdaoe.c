@@ -44,7 +44,7 @@ static char *flagname[] = {
 
 typedef struct Ctlr Ctlr;
 struct Ctlr{
-	QLock;
+	P9_EMBED_QLOCK;
 
 	Ctlr	*next;
 	SDunit	*unit;

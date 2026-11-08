@@ -34,6 +34,20 @@ enum {
 	AAFext	= 1<<6,
 };
 
+#if defined(__clang__) && defined(__x86_64__)
+/* C11-compatible common AoE wire-header prefix. */
+#define P9_AOEHDR_FIELDS \
+uchar	dst[Eaddrlen]; \
+uchar	src[Eaddrlen]; \
+uchar	type[2]; \
+uchar	verflag; \
+uchar	error; \
+uchar	major[2]; \
+uchar	minor; \
+uchar	cmd; \
+uchar	tag[4];
+#endif
+
 typedef struct {
 	uchar	dst[Eaddrlen];
 	uchar	src[Eaddrlen];
@@ -50,8 +64,12 @@ typedef struct {
 #define AOEHDRSZ	offsetof(Aoehdr, payload[0])
 
 typedef struct {
-	Aoehdr;
-	uchar	aflag;
+#if defined(__clang__) && defined(__x86_64__)
+    P9_AOEHDR_FIELDS
+#else
+    Aoehdr;
+#endif
+    uchar aflag;
 	uchar	errfeat;
 	uchar	scnt;
 	uchar	cmdstat;
@@ -63,8 +81,12 @@ typedef struct {
 #define AOEATASZ	offsetof(Aoeata, payload[0])
 
 typedef struct {
-	Aoehdr;
-	uchar	bufcnt[2];
+#if defined(__clang__) && defined(__x86_64__)
+    P9_AOEHDR_FIELDS
+#else
+    Aoehdr;
+#endif
+    uchar bufcnt[2];
 	uchar	fwver[2];
 	uchar	scnt;
 	uchar	verccmd;

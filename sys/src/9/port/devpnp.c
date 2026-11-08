@@ -21,7 +21,7 @@ typedef struct Card Card;
 
 struct Pnp
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	int		rddata;
 	int		debug;
 	Card		*cards;

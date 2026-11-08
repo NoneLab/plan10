@@ -16,9 +16,13 @@ enum
 
 struct
 {
-	Lock;
+	P9_EMBED_LOCK;
 	ulong	bytes;
 } ucialloc;
+
+/* Prototypes supplied by the sibling uncached-memory allocator. */
+extern void *ucalloc(usize);
+extern void ucfree(void *);
 
 static Block*
 _ucallocb(int size)

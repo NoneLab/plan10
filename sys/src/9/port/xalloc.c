@@ -31,7 +31,7 @@ struct Xhdr
 
 struct Xalloc
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Hole	hole[Nhole];
 	Hole*	flist;
 	Hole*	table;
@@ -123,7 +123,7 @@ xallocz(ulong size, int zero)
 	size += BY2V + offsetof(Xhdr, data[0]);
 	size &= ~(BY2V-1);
 
-	ilock(&xlists);
+	ilock(P9_LOCKPTR(&xlists));
 	l = &xlists.table;
 	for(h = *l; h; h = h->link) {
 		if(h->size >= size) {
@@ -135,7 +135,7 @@ xallocz(ulong size, int zero)
 				h->link = xlists.flist;
 				xlists.flist = h;
 			}
-			iunlock(&xlists);
+			iunlock(P9_LOCKPTR(&xlists));
 			if(zero)
 				memset(p, 0, size);
 			p->magix = Magichole;
@@ -144,7 +144,7 @@ xallocz(ulong size, int zero)
 		}
 		l = &h->link;
 	}
-	iunlock(&xlists);
+	iunlock(P9_LOCKPTR(&xlists));
 	return nil;
 }
 
@@ -209,7 +209,7 @@ xhole(ulong addr, ulong size)
 		return;
 
 	top = addr + size;
-	ilock(&xlists);
+	ilock(P9_LOCKPTR(&xlists));
 	l = &xlists.table;
 	for(h = *l; h; h = h->link) {
 		if(h->top == addr) {
@@ -223,7 +223,7 @@ xhole(ulong addr, ulong size)
 				c->link = xlists.flist;
 				xlists.flist = c;
 			}
-			iunlock(&xlists);
+			iunlock(P9_LOCKPTR(&xlists));
 			return;
 		}
 		if(h->addr > addr)
@@ -233,12 +233,12 @@ xhole(ulong addr, ulong size)
 	if(h && top == h->addr) {
 		h->addr -= size;
 		h->size += size;
-		iunlock(&xlists);
+		iunlock(P9_LOCKPTR(&xlists));
 		return;
 	}
 
 	if(xlists.flist == nil) {
-		iunlock(&xlists);
+		iunlock(P9_LOCKPTR(&xlists));
 		print("xfree: no free holes, leaked %lud bytes\n", size);
 		return;
 	}
@@ -250,7 +250,7 @@ xhole(ulong addr, ulong size)
 	h->size = size;
 	h->link = *l;
 	*l = h;
-	iunlock(&xlists);
+	iunlock(P9_LOCKPTR(&xlists));
 }
 
 void

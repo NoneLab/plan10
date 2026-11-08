@@ -15,7 +15,7 @@ alarmkproc(void*)
 
 	for(;;){
 		now = MACHP(0)->ticks;
-		qlock(&alarms);
+		qlock(P9_QLPTR(&alarms));
 		/*
 		 * the odd test of now vs. rp->alarm is to cope with
 		 * now wrapping around.
@@ -34,7 +34,7 @@ alarmkproc(void*)
 			}
 			alarms.head = rp->palarm;
 		}
-		qunlock(&alarms);
+		qunlock(P9_QLPTR(&alarms));
 
 		sleep(&alarmr, return0, 0);
 	}
@@ -74,7 +74,7 @@ procalarm(ulong time)
 	if(when == 0)		/* ticks have wrapped to 0? */
 		when = 1;	/* distinguish a wrapped alarm from no alarm */
 
-	qlock(&alarms);
+	qlock(P9_QLPTR(&alarms));
 	l = &alarms.head;
 	for(f = *l; f; f = f->palarm) {
 		if(up == f){
@@ -101,7 +101,7 @@ procalarm(ulong time)
 		alarms.head = up;
 done:
 	up->alarm = when;
-	qunlock(&alarms);
+	qunlock(P9_QLPTR(&alarms));
 
 	return old;
 }

@@ -37,7 +37,7 @@
 struct {
 	int	init;		/* true if initialized */
 	ulong	cnt;
-	Lock;
+	P9_EMBED_LOCK;
 	uvlong	multiplier;	/* ns = off + (multiplier*ticks)>>31 */
 	uvlong	divider;	/* ticks = (divider*(ns-off))>>31 */
 	uvlong	umultiplier;	/* µs = (µmultiplier*ticks)>>31 */
@@ -58,10 +58,10 @@ todinit(void)
 {
 	if(tod.init)
 		return;
-	ilock(&tod);
+	ilock(P9_LOCKPTR(&tod));
 	tod.init = 1;			/* prevent reentry via fastticks */
 	tod.last = fastticks((uvlong *)&tod.hz);
-	iunlock(&tod);
+	iunlock(P9_LOCKPTR(&tod));
 	todsetfreq(tod.hz);
 	addclock0link(todfix, 100);
 }
@@ -74,7 +74,7 @@ todsetfreq(vlong f)
 {
 	if (f <= 0)
 		panic("todsetfreq: freq %lld <= 0", f);
-	ilock(&tod);
+	ilock(P9_LOCKPTR(&tod));
 	tod.hz = f;
 
 	/* calculate multiplier for time conversion */
@@ -82,7 +82,7 @@ todsetfreq(vlong f)
 	tod.divider = mk64fract(f, TODFREQ) + 1;
 	tod.umultiplier = mk64fract(MicroFREQ, f);
 	tod.udivider = mk64fract(f, MicroFREQ) + 1;
-	iunlock(&tod);
+	iunlock(P9_LOCKPTR(&tod));
 }
 
 /*
@@ -94,7 +94,7 @@ todset(vlong t, vlong delta, int n)
 	if(!tod.init)
 		todinit();
 
-	ilock(&tod);
+	ilock(P9_LOCKPTR(&tod));
 	if(t >= 0){
 		tod.off = t;
 		tod.last = fastticks(nil);
@@ -118,7 +118,7 @@ todset(vlong t, vlong delta, int n)
 		tod.send = tod.sstart + n;
 		tod.delta = delta;
 	}
-	iunlock(&tod);
+	iunlock(P9_LOCKPTR(&tod));
 }
 
 /*
@@ -139,7 +139,7 @@ todget(vlong *ticksp)
 	 * and grabbing tod.last.  Also none of the vlongs are atomic so
 	 * we have to look at them inside the lock.
 	 */
-	ilock(&tod);
+	ilock(P9_LOCKPTR(&tod));
 	tod.cnt++;
 	ticks = fastticks(nil);
 
@@ -165,7 +165,7 @@ todget(vlong *ticksp)
 	else
 		tod.lasttime = x;
 
-	iunlock(&tod);
+	iunlock(P9_LOCKPTR(&tod));
 
 	if(ticksp != nil)
 		*ticksp = ticks;
@@ -181,10 +181,10 @@ tod2fastticks(vlong ns)
 {
 	uvlong x;
 
-	ilock(&tod);
+	ilock(P9_LOCKPTR(&tod));
 	mul64fract(&x, ns-tod.off, tod.divider);
 	x += tod.last;
-	iunlock(&tod);
+	iunlock(P9_LOCKPTR(&tod));
 	return x;
 }
 
@@ -201,7 +201,7 @@ todfix(void)
 
 	diff = ticks - tod.last;
 	if(diff > tod.hz){
-		ilock(&tod);
+		ilock(P9_LOCKPTR(&tod));
 
 		/* convert to epoch */
 		mul64fract(&x, diff, tod.multiplier);
@@ -212,7 +212,7 @@ if(x > 30000000000ULL) iprint("todfix %llud\n", x);
 		tod.last = ticks;
 		tod.off = x;
 
-		iunlock(&tod);
+		iunlock(P9_LOCKPTR(&tod));
 	}
 }
 

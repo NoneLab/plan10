@@ -1,3 +1,41 @@
+/* The machine port may supply ISO C11-compatible embedding macros. */
+#ifndef P9_EMBED_LOCK
+#define P9_EMBED_LOCK Lock
+#endif
+#ifndef P9_EMBED_REF
+#define P9_EMBED_REF Ref
+#endif
+#ifndef P9_EMBED_RENDEZ
+#define P9_EMBED_RENDEZ Rendez
+#endif
+#ifndef P9_EMBED_QLOCK
+#define P9_EMBED_QLOCK QLock
+#endif
+#ifndef P9_EMBED_RWLOCK
+#define P9_EMBED_RWLOCK RWlock
+#endif
+#ifndef P9_EMBED_TIMER
+#define P9_EMBED_TIMER Timer
+#endif
+#ifndef P9_EMBED_NOTSAVE
+#define P9_EMBED_NOTSAVE Notsave
+#endif
+#ifndef P9_EMBED_PMMU
+#define P9_EMBED_PMMU PMMU
+#endif
+
+/* The historical Plan 9 compiler implicitly converts pointers to
+ * embedded first-class objects.  Keep old builds unchanged; the pc64 port
+ * explicitly names the C11 member through its machine-side macros.
+ */
+#ifndef P9_LOCKPTR
+#define P9_LOCKPTR(p)       (p)
+#define P9_QLPTR(p)         (p)
+#define P9_REFPTR(p)        (p)
+#define P9_RENDEZPTR(p)     (p)
+#define P9_TIMERPTR(p)      (p)
+#endif
+
 typedef struct Alarms	Alarms;
 typedef struct Block	Block;
 typedef struct Chan	Chan;
@@ -51,12 +89,24 @@ typedef struct Watchdog	Watchdog;
 typedef struct Watermark	Watermark;
 typedef int    Devgen(Chan*, char*, Dirtab*, int, int, Dir*);
 
+#ifndef __clang__
 #pragma incomplete DevConf
+#endif
+#ifndef __clang__
 #pragma incomplete Edf
+#endif
+#ifndef __clang__
 #pragma incomplete Mntcache
+#endif
+#ifndef __clang__
 #pragma incomplete Mntrpc
+#endif
+#ifndef __clang__
 #pragma incomplete Queue
+#endif
+#ifndef __clang__
 #pragma incomplete Timers
+#endif
 
 #include <fcall.h>
 
@@ -97,13 +147,13 @@ typedef int    Devgen(Chan*, char*, Dirtab*, int, int, Dir*);
 
 struct Ref
 {
-	Lock;
+	P9_EMBED_LOCK;
 	long	ref;
 };
 
 struct Rendez
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Proc	*p;
 };
 
@@ -129,7 +179,7 @@ struct RWlock
 
 struct Alarms
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	Proc	*head;
 };
 
@@ -191,7 +241,7 @@ struct Block
 
 struct Chan
 {
-	Ref;				/* the Lock in this Ref is also Chan's lock */
+	P9_EMBED_REF;				/* the Lock in this Ref is also Chan's lock */
 	Chan*	next;			/* allocation */
 	Chan*	link;
 	vlong	offset;			/* in fd */
@@ -227,7 +277,7 @@ struct Chan
 
 struct Path
 {
-	Ref;
+	P9_EMBED_REF;
 	char	*s;
 	Chan	**mtpt;			/* mtpt history */
 	int	len;			/* strlen(s) */
@@ -306,7 +356,7 @@ struct Mount
 
 struct Mhead
 {
-	Ref;
+	P9_EMBED_REF;
 	RWlock	lock;
 	Chan*	from;			/* channel mounted upon */
 	Mount*	mount;			/* what's mounted upon it */
@@ -315,7 +365,7 @@ struct Mhead
 
 struct Mnt
 {
-	Lock;
+	P9_EMBED_LOCK;
 	/* references are counted using c->ref; channels on this mount point incref(c->mchan) == Mnt.c */
 	Chan	*c;		/* Channel to file service */
 	Proc	*rip;		/* Reader in progress */
@@ -354,7 +404,7 @@ enum
 
 struct Page
 {
-	Lock;
+	P9_EMBED_LOCK;
 	ulong	pa;			/* Physical address in memory */
 	ulong	va;			/* Virtual address for user */
 	ulong	daddr;			/* Disc address on swap */
@@ -371,7 +421,7 @@ struct Page
 
 struct Swapalloc
 {
-	Lock;				/* Free map lock */
+	P9_EMBED_LOCK;				/* Free map lock */
 	int	free;			/* currently free swap pages */
 	uchar*	swmap;			/* Base of swap map in memory */
 	uchar*	alloc;			/* Round robin allocator */
@@ -380,11 +430,17 @@ struct Swapalloc
 	Rendez	r;			/* Pager kproc idle sleep */
 	ulong	highwater;		/* Pager start threshold */
 	ulong	headroom;		/* Space pager frees under highwater */
-}swapalloc;
+};
+#if defined(__clang__) && defined(__x86_64__)
+extern struct Swapalloc swapalloc;
+#else
+/* Original Plan 9 compiler/linker permitted a shared tentative definition. */
+struct Swapalloc swapalloc;
+#endif
 
 struct Image
 {
-	Ref;
+	P9_EMBED_REF;
 	Chan	*c;			/* channel to text file */
 	Qid 	qid;			/* Qid for page cache coherence */
 	Qid	mqid;
@@ -437,7 +493,7 @@ struct Physseg
 
 struct Sema
 {
-	Rendez;
+	P9_EMBED_RENDEZ;
 	long	*addr;
 	int	waiting;
 	Sema	*next;
@@ -446,7 +502,7 @@ struct Sema
 
 struct Segment
 {
-	Ref;
+	P9_EMBED_REF;
 	QLock	lk;
 	ushort	steal;		/* Page stealer lock */
 	ushort	type;		/* segment type */
@@ -482,7 +538,7 @@ enum
 
 struct Pgrp
 {
-	Ref;				/* also used as a lock when mounting */
+	P9_EMBED_REF;				/* also used as a lock when mounting */
 	int	noattach;
 	ulong	pgrpid;
 	QLock	debug;			/* single access via devproc.c */
@@ -492,14 +548,14 @@ struct Pgrp
 
 struct Rgrp
 {
-	Ref;				/* the Ref's lock is also the Rgrp's lock */
+	P9_EMBED_REF;				/* the Ref's lock is also the Rgrp's lock */
 	Proc	*rendhash[RENDHASH];	/* Rendezvous tag hash */
 };
 
 struct Egrp
 {
-	Ref;
-	RWlock;
+	P9_EMBED_REF;
+	P9_EMBED_RWLOCK;
 	Evalue	**ent;
 	int	nent;
 	int	ment;
@@ -518,7 +574,7 @@ struct Evalue
 
 struct Fgrp
 {
-	Ref;
+	P9_EMBED_REF;
 	Chan	**fd;
 	int	nfd;			/* number allocated */
 	int	maxfd;			/* highest fd in use */
@@ -538,7 +594,7 @@ struct Pallocmem
 
 struct Palloc
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Pallocmem	mem[4];
 	Page	*head;			/* most recently used */
 	Page	*tail;			/* least recently used */
@@ -574,7 +630,7 @@ struct Timer
 	void	(*tf)(Ureg*, Timer*);
 	void	*ta;
 	/* Internal */
-	Lock;
+	P9_EMBED_LOCK;
 	Timers	*tt;		/* Timers queue this timer runs on */
 	Tval	tticks;		/* tns converted to ticks */
 	Tval	twhen;		/* ns represented in fastticks */
@@ -649,7 +705,7 @@ enum
 
 struct Schedq
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Proc*	head;
 	Proc*	tail;
 	int	n;
@@ -729,7 +785,7 @@ struct Proc
 	uintptr	rendval;	/* Value for rendezvous */
 	Proc	*rendhash;	/* Hash list for tag values */
 
-	Timer;			/* For tsleep and real-time */
+	P9_EMBED_TIMER;			/* For tsleep and real-time */
 	Rendez	*trend;
 	int	(*tfn)(void*);
 	void	(*kpfun)(void*);
@@ -782,12 +838,12 @@ struct Proc
 
 	void	*ureg;		/* User registers for notes */
 	void	*dbgreg;	/* User registers for devproc */
-	Notsave;
+	P9_EMBED_NOTSAVE;
 
 	/*
 	 *  machine specific MMU
 	 */
-	PMMU;
+	P9_EMBED_PMMU;
 	char	*syscalltrace;	/* syscall trace */
 };
 
@@ -820,7 +876,7 @@ extern	Queue*	kprintoq;
 extern 	Ref	noteidalloc;
 extern	int	nsyscall;
 extern	Palloc	palloc;
-	int	(*parseboothdr)(Chan *, ulong, Execvals *);
+	extern int	(*parseboothdr)(Chan *, ulong, Execvals *);
 extern	Queue*	serialoq;
 extern	char*	statename[];
 extern	Image	swapimage;
@@ -828,8 +884,8 @@ extern	char*	sysname;
 extern	uint	qiomaxatomic;
 extern	char*	sysctab[];
 
-	Watchdog*watchdog;
-	int	watchdogon;
+	extern Watchdog*watchdog;
+	extern int	watchdogon;
 
 enum
 {
@@ -840,7 +896,7 @@ enum
  *  action log
  */
 struct Log {
-	Lock;
+	P9_EMBED_LOCK;
 	int	opens;
 	char*	buf;
 	char	*end;
@@ -926,7 +982,7 @@ struct Uart
 	int	special;		/* internal kernel device */
 	Uart*	next;			/* list of allocated uarts */
 
-	QLock;
+	P9_EMBED_QLOCK;
 	int	type;			/* ?? */
 	int	dev;
 	int	opens;
@@ -970,7 +1026,7 @@ struct Uart
 
 extern	Uart*	consuart;
 
-void (*lprint)(char *, int);
+extern void (*lprint)(char *, int);
 
 /*
  *  performance timers, all units in perfticks
@@ -1018,7 +1074,15 @@ enum
 
 #define DEVDOTDOT -1
 
+#ifndef __clang__
 #pragma	varargck	type	"I"	uchar*
+#endif
+#ifndef __clang__
 #pragma	varargck	type	"V"	uchar*
+#endif
+#ifndef __clang__
 #pragma	varargck	type	"E"	uchar*
+#endif
+#ifndef __clang__
 #pragma	varargck	type	"M"	uchar*
+#endif

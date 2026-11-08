@@ -123,12 +123,20 @@ struct Hciimpl
 
 struct Hci
 {
-	ISAConf;				/* hardware info */
+#if defined(__clang__) && defined(__x86_64__)
+    P9_EMBED_ISACONF;           /* hardware info */
+#else
+    ISAConf;                    /* hardware info */
+#endif
 	int	tbdf;				/* type+busno+devno+funcno */
 	int	ctlrno;				/* controller number */
 	int	nports;				/* number of ports in hub */
 	int	highspeed;
-	Hciimpl;					/* HCI driver  */
+#if defined(__clang__) && defined(__x86_64__)
+    P9_EMBED_HCIIMPL;           /* HCI driver */
+#else
+    Hciimpl;                    /* HCI driver */
+#endif
 };
 
 /*

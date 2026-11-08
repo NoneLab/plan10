@@ -330,7 +330,7 @@ edfrun(Proc *p, int edfpri)
 		e->tmode = Trelative;
 		e->tf = deadlineintr;
 		e->ta = p;
-		timeradd(e);
+		timeradd(P9_TIMERPTR(e));
 	}else{
 		DPRINT("<");
 	}
@@ -403,7 +403,7 @@ edfadmit(Proc *p)
 			p->ta = p;
 			edfunlock();
 			qunlock(&edfschedlock);
-			releaseintr(nil, p);
+			releaseintr(nil, P9_TIMERPTR(p));
 			return nil;
 		}
 	}else{
@@ -426,7 +426,7 @@ edfadmit(Proc *p)
 					tns = 20;
 				e->tns = 1000LL * tns;
 				e->tmode = Trelative;
-				timeradd(e);
+				timeradd(P9_TIMERPTR(e));
 			}
 		}
 	}
@@ -447,7 +447,7 @@ edfstop(Proc *p)
 			pt(p, SExpel, 0);
 		e->flags &= ~Admitted;
 		if(e->tt)
-			timerdel(e);
+			timerdel(P9_TIMERPTR(e));
 		edfunlock();
 	}
 }
@@ -489,7 +489,7 @@ edfyield(void)
 		up->tmode = Trelative;
 		up->ta = up;
 		up->trend = &up->sleep;
-		timeradd(up);
+		timeradd(P9_TIMERPTR(up));
 	}else if(up->tf != releaseintr)
 		print("edfyield: surprise! %#p\n", up->tf);
 	edfunlock();
@@ -535,7 +535,7 @@ edfready(Proc *p)
 				e->tmode = Trelative;
 				e->tf = releaseintr;
 				e->ta = p;
-				timeradd(e);
+				timeradd(P9_TIMERPTR(e));
 				DPRINT("%lud edfready %lud[%s], release=%lud\n",
 					now, p->pid, statename[p->state], e->t);
 			}
@@ -565,7 +565,7 @@ edfready(Proc *p)
 	DPRINT("^");
 	rq = &runq[PriEdf];
 	/* insert in queue in earliest deadline order */
-	lock(runq);
+	lock(P9_LOCKPTR(runq));
 	l = nil;
 	for(pp = rq->head; pp; pp = pp->rnext){
 		if(pp->edf->d > e->d)
@@ -585,7 +585,7 @@ edfready(Proc *p)
 	p->priority = PriEdf;
 	p->readytime = m->ticks;
 	p->state = Ready;
-	unlock(runq);
+	unlock(P9_LOCKPTR(runq));
 	if(p->trace && (pt = proctrace))
 		pt(p, SReady, 0);
 	return 1;

@@ -90,7 +90,7 @@ sysrfork(ulong *arg)
 	p->nerrlab = 0;
 	p->slash = up->slash;
 	p->dot = up->dot;
-	incref(p->dot);
+	incref(P9_REFPTR(p->dot));
 
 	memmove(p->note, up->note, sizeof(p->note));
 	p->privatemem = up->privatemem;
@@ -124,7 +124,7 @@ sysrfork(ulong *arg)
 	}
 	else {
 		p->fgrp = up->fgrp;
-		incref(p->fgrp);
+		incref(P9_REFPTR(p->fgrp));
 	}
 
 	/* Process groups */
@@ -137,7 +137,7 @@ sysrfork(ulong *arg)
 	}
 	else {
 		p->pgrp = up->pgrp;
-		incref(p->pgrp);
+		incref(P9_REFPTR(p->pgrp));
 	}
 	if(flag & RFNOMNT)
 		p->pgrp->noattach = 1;
@@ -145,7 +145,7 @@ sysrfork(ulong *arg)
 	if(flag & RFREND)
 		p->rgrp = newrgrp();
 	else {
-		incref(up->rgrp);
+		incref(P9_REFPTR(up->rgrp));
 		p->rgrp = up->rgrp;
 	}
 
@@ -158,7 +158,7 @@ sysrfork(ulong *arg)
 	}
 	else {
 		p->egrp = up->egrp;
-		incref(p->egrp);
+		incref(P9_REFPTR(p->egrp));
 	}
 	p->hang = up->hang;
 	p->procmode = up->procmode;
@@ -436,14 +436,14 @@ sysexec(ulong *arg)
 	ts->flushme = 1;
 	ts->fstart = 0;
 	ts->flen = sizeof(Exec)+text;
-	unlock(img);
+	unlock(P9_LOCKPTR(img));
 
 	/* Data. Shared. */
 	s = newseg(SG_DATA, t, (d-t)>>PGSHIFT);
 	up->seg[DSEG] = s;
 
 	/* Attached by hand */
-	incref(img);
+	incref(P9_REFPTR(img));
 	s->image = img;
 	s->fstart = ts->fstart+ts->flen;
 	s->flen = data;
@@ -808,7 +808,7 @@ sysrendezvous(ulong *arg)
 	l = &REND(up->rgrp, tag);
 	up->rendval = ~(uintptr)0;
 
-	lock(up->rgrp);
+	lock(P9_LOCKPTR(up->rgrp));
 	for(p = *l; p; p = p->rendhash) {
 		if(p->rendtag == tag) {
 			*l = p->rendhash;
@@ -818,7 +818,7 @@ sysrendezvous(ulong *arg)
 			while(p->mach != 0)
 				;
 			ready(p);
-			unlock(up->rgrp);
+			unlock(P9_LOCKPTR(up->rgrp));
 			return val;
 		}
 		l = &p->rendhash;
@@ -830,7 +830,7 @@ sysrendezvous(ulong *arg)
 	up->rendhash = *l;
 	*l = up;
 	up->state = Rendezvous;
-	unlock(up->rgrp);
+	unlock(P9_LOCKPTR(up->rgrp));
 
 	sched();
 
@@ -927,22 +927,22 @@ semqueue(Segment *s, long *a, Sema *p)
 {
 	memset(p, 0, sizeof *p);
 	p->addr = a;
-	lock(&s->sema);	/* uses s->sema.Rendez.Lock, but no one else is */
+	lock(P9_LOCKPTR(&s->sema));	/* uses s->sema.Rendez.Lock, but no one else is */
 	p->next = &s->sema;
 	p->prev = s->sema.prev;
 	p->next->prev = p;
 	p->prev->next = p;
-	unlock(&s->sema);
+	unlock(P9_LOCKPTR(&s->sema));
 }
 
 /* Remove semaphore p from list in seg. */
 static void
 semdequeue(Segment *s, Sema *p)
 {
-	lock(&s->sema);
+	lock(P9_LOCKPTR(&s->sema));
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
-	unlock(&s->sema);
+	unlock(P9_LOCKPTR(&s->sema));
 }
 
 /* Wake up n waiters with addr a on list in seg. */
@@ -951,16 +951,16 @@ semwakeup(Segment *s, long *a, long n)
 {
 	Sema *p;
 	
-	lock(&s->sema);
+	lock(P9_LOCKPTR(&s->sema));
 	for(p=s->sema.next; p!=&s->sema && n>0; p=p->next){
 		if(p->addr == a && p->waiting){
 			p->waiting = 0;
 			coherence();
-			wakeup(p);
+			wakeup(P9_RENDEZPTR(p));
 			n--;
 		}
 	}
-	unlock(&s->sema);
+	unlock(P9_LOCKPTR(&s->sema));
 }
 
 /* Add delta to semaphore and wake up waiters as appropriate. */
@@ -1019,7 +1019,7 @@ semacquire(Segment *s, long *addr, int block)
 		}
 		if(waserror())
 			break;
-		sleep(&phore, semawoke, &phore);
+		sleep(P9_RENDEZPTR(&phore), semawoke, &phore);
 		poperror();
 	}
 	semdequeue(s, &phore);
@@ -1055,7 +1055,7 @@ tsemacquire(Segment *s, long *addr, ulong ms)
 		if(waserror())
 			break;
 		t = m->ticks;
-		tsleep(&phore, semawoke, &phore, ms);
+		tsleep(P9_RENDEZPTR(&phore), semawoke, &phore, ms);
 		elms = TK2MS(m->ticks - t);
 		poperror();
 		if(elms >= ms){

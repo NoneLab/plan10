@@ -11,7 +11,7 @@
 
 typedef struct Private Private;
 struct Private {
-	Lock;
+	P9_EMBED_LOCK;
 	char	msg[256];
 	char*	cur;
 };
@@ -72,7 +72,11 @@ ucpoollock(Pool* p)
 
 	pv = p->private;
 	ilock(pv);
-	pv->pc = getcallerpc(&p);
+#if defined(__clang__) && defined(__x86_64__)
+    pv->_p9_lock.pc = getcallerpc(&p);
+#else
+    pv->pc = getcallerpc(&p);
+#endif
 	pv->cur = pv->msg;
 }
 

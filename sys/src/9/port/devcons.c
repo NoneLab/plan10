@@ -22,7 +22,7 @@ int	panicking;
 
 static struct
 {
-	QLock;
+	P9_EMBED_QLOCK;
 
 	int	raw;		/* true if we shouldn't process input */
 	Ref	ctl;		/* number of opens to the control file */
@@ -342,9 +342,9 @@ pprint(char *fmt, ...)
 	devtab[c->type]->write(c, buf, n, c->offset);
 	poperror();
 
-	lock(c);
+	lock(P9_LOCKPTR(c));
 	c->offset += n;
-	unlock(c);
+	unlock(P9_LOCKPTR(c));
 
 	return n;
 }
@@ -758,9 +758,9 @@ consread(Chan *c, void *buf, long n, vlong off)
 		return devdirread(c, buf, n, consdir, nelem(consdir), devgen);
 
 	case Qcons:
-		qlock(&kbd);
+		qlock(P9_QLPTR(&kbd));
 		if(waserror()) {
-			qunlock(&kbd);
+			qunlock(P9_QLPTR(&kbd));
 			nexterror();
 		}
 		while(!qcanread(lineq)){
@@ -798,7 +798,7 @@ consread(Chan *c, void *buf, long n, vlong off)
 			}
 		}
 		n = qread(lineq, buf, n);
-		qunlock(&kbd);
+		qunlock(P9_QLPTR(&kbd));
 		poperror();
 		return n;
 

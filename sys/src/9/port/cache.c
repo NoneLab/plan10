@@ -29,7 +29,7 @@ struct Mntcache
 	Qid	qid;
 	int	dev;
 	int	type;
-	QLock;
+	P9_EMBED_QLOCK;
 	Extent	 *list;
 	Mntcache *hash;
 	Mntcache *prev;
@@ -39,8 +39,15 @@ struct Mntcache
 typedef struct Cache Cache;
 struct Cache
 {
-	QLock;
-	int		pgno;
+#ifdef __clang__
+    /* QLock.tail clashes with the cache's unrelated LRU tail.  This
+     * typed named member retains the original QLock storage and offset.
+     */
+    QLock _p9_qlock;
+#else
+    QLock;
+#endif
+    int		pgno;
 	Mntcache	*head;
 	Mntcache	*tail;
 	Mntcache	*hash[NHASH];
@@ -49,7 +56,7 @@ struct Cache
 typedef struct Ecache Ecache;
 struct Ecache
 {
-	Lock;
+	P9_EMBED_LOCK;
 	int	total;
 	int	free;
 	Extent*	head;
@@ -63,11 +70,11 @@ static int maxcache = MAXCACHE;
 static void
 extentfree(Extent* e)
 {
-	lock(&ecache);
+	lock(P9_LOCKPTR(&ecache));
 	e->next = ecache.head;
 	ecache.head = e;
 	ecache.free++;
-	unlock(&ecache);
+	unlock(P9_LOCKPTR(&ecache));
 }
 
 static Extent*
@@ -76,11 +83,11 @@ extentalloc(void)
 	Extent *e;
 	int i;
 
-	lock(&ecache);
+	lock(P9_LOCKPTR(&ecache));
 	if(ecache.head == nil){
 		e = xalloc(NEXTENT*sizeof(Extent));
 		if(e == nil){
-			unlock(&ecache);
+			unlock(P9_LOCKPTR(&ecache));
 			return nil;
 		}
 		for(i = 0; i < NEXTENT; i++){
@@ -96,7 +103,7 @@ extentalloc(void)
 	ecache.head = e->next;
 	memset(e, 0, sizeof(Extent));
 	ecache.free--;
-	unlock(&ecache);
+	unlock(P9_LOCKPTR(&ecache));
 
 	return e;
 }
@@ -223,21 +230,21 @@ copen(Chan *c)
 		return;
 
 	h = c->qid.path%NHASH;
-	qlock(&cache);
+	qlock(P9_QLPTR(&cache));
 	for(m = cache.hash[h]; m; m = m->hash) {
 		if(m->qid.path == c->qid.path)
 		if(m->qid.type == c->qid.type)
 		if(m->dev == c->dev && m->type == c->type) {
 			c->mcp = m;
 			ctail(m);
-			qunlock(&cache);
+			qunlock(P9_QLPTR(&cache));
 
 			/* File was updated, invalidate cache */
 			if(m->qid.vers != c->qid.vers) {
 				m->qid.vers = c->qid.vers;
-				qlock(m);
+				qlock(P9_QLPTR(m));
 				cnodata(m);
-				qunlock(m);
+				qunlock(P9_QLPTR(m));
 			}
 			return;
 		}
@@ -263,18 +270,18 @@ copen(Chan *c)
 	*l = m;
 	ctail(m);
 
-	qlock(m);
+	qlock(P9_QLPTR(m));
 	c->mcp = m;
 	e = m->list;
 	m->list = 0;
-	qunlock(&cache);
+	qunlock(P9_QLPTR(&cache));
 
 	while(e) {
 		next = e->next;
 		extentfree(e);
 		e = next;
 	}
-	qunlock(m);
+	qunlock(P9_QLPTR(m));
 }
 
 static int
@@ -310,9 +317,9 @@ cread(Chan *c, uchar *buf, int len, vlong off)
 	if(m == 0)
 		return 0;
 
-	qlock(m);
+	qlock(P9_QLPTR(m));
 	if(cdev(m, c) == 0) {
-		qunlock(m);
+		qunlock(P9_QLPTR(m));
 		return 0;
 	}
 
@@ -325,7 +332,7 @@ cread(Chan *c, uchar *buf, int len, vlong off)
 	}
 
 	if(e == 0) {
-		qunlock(m);
+		qunlock(P9_QLPTR(m));
 		return 0;
 	}
 
@@ -335,7 +342,7 @@ cread(Chan *c, uchar *buf, int len, vlong off)
 		if(p == 0) {
 			*t = e->next;
 			extentfree(e);
-			qunlock(m);
+			qunlock(P9_QLPTR(m));
 			return total;
 		}
 
@@ -348,7 +355,7 @@ cread(Chan *c, uchar *buf, int len, vlong off)
 		if(waserror()) {
 			kunmap(k);
 			putpage(p);
-			qunlock(m);
+			qunlock(P9_QLPTR(m));
 			nexterror();
 		}
 
@@ -369,7 +376,7 @@ cread(Chan *c, uchar *buf, int len, vlong off)
 			break;
 	}
 
-	qunlock(m);
+	qunlock(P9_QLPTR(m));
 	return total;
 }
 
@@ -402,7 +409,7 @@ cchain(uchar *buf, ulong offset, int len, Extent **tail)
 		e->start = offset;
 		e->len = l;
 
-		qlock(&cache);
+		qlock(P9_QLPTR(&cache));
 		e->bid = cache.pgno;
 		cache.pgno += BY2PG;
 		/* wrap the counter; low bits are unused by pghash but checked by lookpage */
@@ -413,7 +420,7 @@ cchain(uchar *buf, ulong offset, int len, Extent **tail)
 			}else
 				cache.pgno++;
 		}
-		qunlock(&cache);
+		qunlock(P9_QLPTR(&cache));
 
 		p->daddr = e->bid;
 		k = kmap(p);
@@ -480,9 +487,9 @@ cupdate(Chan *c, uchar *buf, int len, vlong off)
 	m = c->mcp;
 	if(m == 0)
 		return;
-	qlock(m);
+	qlock(P9_QLPTR(m));
 	if(cdev(m, c) == 0) {
-		qunlock(m);
+		qunlock(P9_QLPTR(m));
 		return;
 	}
 
@@ -502,7 +509,7 @@ cupdate(Chan *c, uchar *buf, int len, vlong off)
 	if(f != 0 && eblock > f->start) {
 		len -= (eblock - f->start);
 		if(len <= 0) {
-			qunlock(m);
+			qunlock(P9_QLPTR(m));
 			return;
 		}
 	}
@@ -513,7 +520,7 @@ cupdate(Chan *c, uchar *buf, int len, vlong off)
 			m->list = e;
 			tail->next = f;
 		}
-		qunlock(m);
+		qunlock(P9_QLPTR(m));
 		return;
 	}
 
@@ -523,7 +530,7 @@ cupdate(Chan *c, uchar *buf, int len, vlong off)
 		o = ee - offset;
 		len -= o;
 		if(len <= 0) {
-			qunlock(m);
+			qunlock(P9_QLPTR(m));
 			return;
 		}
 		buf += o;
@@ -542,7 +549,7 @@ cupdate(Chan *c, uchar *buf, int len, vlong off)
 			offset += o;
 			if(len <= 0) {
 if(f && p->start + p->len > f->start) print("CACHE: p->start=%uld p->len=%d f->start=%uld\n", p->start, p->len, f->start);
-				qunlock(m);
+				qunlock(P9_QLPTR(m));
 				return;
 			}
 		}
@@ -553,7 +560,7 @@ if(f && p->start + p->len > f->start) print("CACHE: p->start=%uld p->len=%d f->s
 		p->next = e;
 		tail->next = f;
 	}
-	qunlock(m);
+	qunlock(P9_QLPTR(m));
 }
 
 void
@@ -572,9 +579,9 @@ cwrite(Chan* c, uchar *buf, int len, vlong off)
 	if(m == 0)
 		return;
 
-	qlock(m);
+	qlock(P9_QLPTR(m));
 	if(cdev(m, c) == 0) {
-		qunlock(m);
+		qunlock(P9_QLPTR(m));
 		return;
 	}
 
@@ -626,5 +633,5 @@ cwrite(Chan* c, uchar *buf, int len, vlong off)
 		m->list = f;
 	else
 		p->next = f;
-	qunlock(m);
+	qunlock(P9_QLPTR(m));
 }

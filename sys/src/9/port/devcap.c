@@ -27,7 +27,7 @@ struct Caphash
 
 struct
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	Caphash	*first;
 	int	nhash;
 } capalloc;

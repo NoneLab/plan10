@@ -41,7 +41,7 @@ envgen(Chan *c, char *name, Dirtab*, int, int s, Dir *dp)
 	}
 
 	eg = envgrp(c);
-	rlock(eg);
+	rlock(&eg->_p9_rwlock);
 	e = 0;
 	if(name)
 		e = envlookup(eg, name, -1);
@@ -49,14 +49,14 @@ envgen(Chan *c, char *name, Dirtab*, int, int s, Dir *dp)
 		e = eg->ent[s];
 
 	if(e == 0) {
-		runlock(eg);
+		runlock(&eg->_p9_rwlock);
 		return -1;
 	}
 
 	/* make sure name string continues to exist after we release lock */
 	kstrcpy(up->genbuf, e->name, sizeof up->genbuf);
 	devdir(c, e->qid, up->genbuf, e->len, eve, 0666, dp);
-	runlock(eg);
+	runlock(&eg->_p9_rwlock);
 	return 1;
 }
 
@@ -109,15 +109,15 @@ envopen(Chan *c, int omode)
 		if(omode != OREAD && !envwriteable(c))
 			error(Eperm);
 		if(trunc)
-			wlock(eg);
+			wlock(&eg->_p9_rwlock);
 		else
-			rlock(eg);
+			rlock(&eg->_p9_rwlock);
 		e = envlookup(eg, nil, c->qid.path);
 		if(e == 0) {
 			if(trunc)
-				wunlock(eg);
+				wunlock(&eg->_p9_rwlock);
 			else
-				runlock(eg);
+				runlock(&eg->_p9_rwlock);
 			error(Enonexist);
 		}
 		if(trunc && e->value) {
@@ -127,9 +127,9 @@ envopen(Chan *c, int omode)
 			e->len = 0;
 		}
 		if(trunc)
-			wunlock(eg);
+			wunlock(&eg->_p9_rwlock);
 		else
-			runlock(eg);
+			runlock(&eg->_p9_rwlock);
 	}
 	c->mode = openmode(omode);
 	c->flag |= COPEN;
@@ -152,9 +152,9 @@ envcreate(Chan *c, char *name, int omode, ulong)
 	omode = openmode(omode);
 	eg = envgrp(c);
 
-	wlock(eg);
+	wlock(&eg->_p9_rwlock);
 	if(waserror()) {
-		wunlock(eg);
+		wunlock(&eg->_p9_rwlock);
 		nexterror();
 	}
 
@@ -179,7 +179,7 @@ envcreate(Chan *c, char *name, int omode, ulong)
 	eg->ent[eg->nent++] = e;
 	c->qid = e->qid;
 
-	wunlock(eg);
+	wunlock(&eg->_p9_rwlock);
 	poperror();
 
 	c->offset = 0;
@@ -198,7 +198,7 @@ envremove(Chan *c)
 		error(Eperm);
 
 	eg = envgrp(c);
-	wlock(eg);
+	wlock(&eg->_p9_rwlock);
 	e = 0;
 	for(i=0; i<eg->nent; i++){
 		if(eg->ent[i]->qid.path == c->qid.path){
@@ -209,7 +209,7 @@ envremove(Chan *c)
 			break;
 		}
 	}
-	wunlock(eg);
+	wunlock(&eg->_p9_rwlock);
 	if(e == 0)
 		error(Enonexist);
 	free(e->name);
@@ -241,10 +241,10 @@ envread(Chan *c, void *a, long n, vlong off)
 		return devdirread(c, a, n, 0, 0, envgen);
 
 	eg = envgrp(c);
-	rlock(eg);
+	rlock(&eg->_p9_rwlock);
 	e = envlookup(eg, nil, c->qid.path);
 	if(e == 0) {
-		runlock(eg);
+		runlock(&eg->_p9_rwlock);
 		error(Enonexist);
 	}
 
@@ -256,7 +256,7 @@ envread(Chan *c, void *a, long n, vlong off)
 		n = 0;
 	else
 		memmove(a, e->value+offset, n);
-	runlock(eg);
+	runlock(&eg->_p9_rwlock);
 	return n;
 }
 
@@ -275,10 +275,10 @@ envwrite(Chan *c, void *a, long n, vlong off)
 		error(Etoobig);
 
 	eg = envgrp(c);
-	wlock(eg);
+	wlock(&eg->_p9_rwlock);
 	e = envlookup(eg, nil, c->qid.path);
 	if(e == 0) {
-		wunlock(eg);
+		wunlock(&eg->_p9_rwlock);
 		error(Enonexist);
 	}
 
@@ -295,7 +295,7 @@ envwrite(Chan *c, void *a, long n, vlong off)
 	memmove(e->value+offset, a, n);
 	e->qid.vers++;
 	eg->vers++;
-	wunlock(eg);
+	wunlock(&eg->_p9_rwlock);
 	return n;
 }
 
@@ -326,7 +326,7 @@ envcpy(Egrp *to, Egrp *from)
 	int i;
 	Evalue *ne, *e;
 
-	rlock(from);
+	rlock(&from->_p9_rwlock);
 	to->ment = (from->nent+31)&~31;
 	to->ent = smalloc(to->ment*sizeof(to->ent[0]));
 	for(i=0; i<from->nent; i++){
@@ -343,7 +343,7 @@ envcpy(Egrp *to, Egrp *from)
 		to->ent[i] = ne;
 	}
 	to->nent = from->nent;
-	runlock(from);
+	runlock(&from->_p9_rwlock);
 }
 
 void
@@ -352,7 +352,7 @@ closeegrp(Egrp *eg)
 	int i;
 	Evalue *e;
 
-	if(decref(eg) == 0){
+	if(decref(P9_REFPTR(eg)) == 0){
 		for(i=0; i<eg->nent; i++){
 			e = eg->ent[i];
 			free(e->name);
@@ -407,9 +407,9 @@ getconfenv(void)
 	char *p, *q;
 	int i, n;
 
-	rlock(eg);
+	rlock(&eg->_p9_rwlock);
 	if(waserror()) {
-		runlock(eg);
+		runlock(&eg->_p9_rwlock);
 		nexterror();
 	}
 	
@@ -435,6 +435,6 @@ getconfenv(void)
 	*q = 0;
 	
 	poperror();
-	runlock(eg);
+	runlock(&eg->_p9_rwlock);
 	return p;
 }

@@ -42,7 +42,7 @@ void		cmderror(Cmdbuf*, char*);
 int		cmount(Chan**, Chan*, int, char*);
 void		confinit(void);
 int		consactive(void);
-void		(*consdebug)(void);
+extern void		(*consdebug)(void);
 void		copen(Chan*);
 Block*		concatblock(Block*);
 Block*		copyblock(Block*, int);
@@ -122,7 +122,11 @@ void		freepte(Segment*, Pte*);
 void		getcolor(ulong, ulong*, ulong*, ulong*);
 ulong		getmalloctag(void*);
 ulong		getrealloctag(void*);
-void		gotolabel(Label*);
+#if defined(__clang__) && defined(__x86_64__)
+void        gotolabel(Label*) __attribute__((noreturn));
+#else
+void        gotolabel(Label*);
+#endif
 char*		getconfenv(void);
 int		haswaitq(void*);
 long		hostdomainwrite(char*, int);
@@ -152,7 +156,7 @@ void		kickpager(void);
 void		killbig(char*);
 void		kproc(char*, void(*)(void*), void*);
 void		kprocchild(Proc*, void (*)(void*), void*);
-void		(*kproftimer)(ulong);
+extern void		(*kproftimer)(ulong);
 void		ksetenv(char*, char*, int);
 void		kstrcpy(char*, char*, int);
 void		kstrdup(char**, char*);
@@ -309,7 +313,7 @@ void		savefpregs(FPsave*);
 void		sched(void);
 void		scheddump(void);
 void		schedinit(void);
-void		(*screenputs)(char*, int);
+extern void		(*screenputs)(char*, int);
 long		seconds(void);
 ulong		segattach(Proc*, ulong, char *, ulong, ulong);
 void		segclock(ulong);
@@ -317,7 +321,11 @@ void		segpage(Segment*, Page*);
 char*		seprintmark(char *, char *, Watermark *);
 int		setcolor(ulong, ulong, ulong, ulong);
 void		setkernur(Ureg*, Proc*);
-int		setlabel(Label*);
+#if defined(__clang__) && defined(__x86_64__)
+int         setlabel(Label*) __attribute__((returns_twice));
+#else
+int         setlabel(Label*);
+#endif
 void		setmalloctag(void*, ulong);
 void		setrealloctag(void*, ulong);
 void		setregisters(Ureg*, char*, char*, int);
@@ -397,6 +405,12 @@ void		_xinc(long*);
 long		_xdec(long*);
 long		lcycles(void);
 
+#ifndef __clang__
 #pragma varargck argpos iprint	1
+#endif
+#ifndef __clang__
 #pragma	varargck argpos	panic	1
+#endif
+#ifndef __clang__
 #pragma varargck argpos pprint	1
+#endif

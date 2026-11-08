@@ -26,7 +26,7 @@ static Lock physseglock;
 #define ihash(s)	imagealloc.hash[s%IHASHSIZE]
 static struct Imagealloc
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Image	*free;
 	Image	*hash[IHASHSIZE];
 	QLock	ireclaim;	/* mutex on reclaiming free images */
@@ -100,21 +100,21 @@ putseg(Segment *s)
 
 	i = s->image;
 	if(i != 0) {
-		lock(i);
-		lock(s);
+		lock(P9_LOCKPTR(i));
+		lock(P9_LOCKPTR(s));
 		if(i->s == s && s->ref == 1)
 			i->s = 0;
-		unlock(i);
+		unlock(P9_LOCKPTR(i));
 	}
 	else
-		lock(s);
+		lock(P9_LOCKPTR(s));
 
 	s->ref--;
 	if(s->ref != 0) {
-		unlock(s);
+		unlock(P9_LOCKPTR(s));
 		return;
 	}
-	unlock(s);
+	unlock(P9_LOCKPTR(s));
 
 	qlock(&s->lk);
 	if(i)
@@ -193,7 +193,7 @@ dupseg(Segment **seg, int segno, int share)
 			goto sameseg;
 		n = newseg(s->type, s->base, s->size);
 
-		incref(s->image);
+		incref(P9_REFPTR(s->image));
 		n->image = s->image;
 		n->fstart = s->fstart;
 		n->flen = s->flen;
@@ -212,7 +212,7 @@ dupseg(Segment **seg, int segno, int share)
 	return n;
 
 sameseg:
-	incref(s);
+	incref(P9_REFPTR(s));
 	poperror();
 	qunlock(&s->lk);
 	return s;
@@ -250,7 +250,7 @@ attachimage(int type, Chan *c, ulong base, ulong len)
 	if(imagealloc.nfreechan)
 		imagechanreclaim();
 
-	lock(&imagealloc);
+	lock(P9_LOCKPTR(&imagealloc));
 
 	/*
 	 * Search the image cache for remains of the text from a previous
@@ -258,14 +258,14 @@ attachimage(int type, Chan *c, ulong base, ulong len)
 	 */
 	for(i = ihash(c->qid.path); i; i = i->hash) {
 		if(c->qid.path == i->qid.path) {
-			lock(i);
+			lock(P9_LOCKPTR(i));
 			if(eqqid(c->qid, i->qid) &&
 			   eqqid(c->mqid, i->mqid) &&
 			   c->mchan == i->mchan &&
 			   c->type == i->type) {
 				goto found;
 			}
-			unlock(i);
+			unlock(P9_LOCKPTR(i));
 		}
 	}
 
@@ -274,16 +274,16 @@ attachimage(int type, Chan *c, ulong base, ulong len)
 	 * structures. This should free some image structures.
 	 */
 	while(!(i = imagealloc.free)) {
-		unlock(&imagealloc);
+		unlock(P9_LOCKPTR(&imagealloc));
 		imagereclaim();
 		sched();
-		lock(&imagealloc);
+		lock(P9_LOCKPTR(&imagealloc));
 	}
 
 	imagealloc.free = i->next;
 
-	lock(i);
-	incref(c);
+	lock(P9_LOCKPTR(i));
+	incref(P9_REFPTR(c));
 	i->c = c;
 	i->type = c->type;
 	i->qid = c->qid;
@@ -293,12 +293,12 @@ attachimage(int type, Chan *c, ulong base, ulong len)
 	i->hash = *l;
 	*l = i;
 found:
-	unlock(&imagealloc);
+	unlock(P9_LOCKPTR(&imagealloc));
 
 	if(i->s == 0) {
 		/* Disaster after commit in exec */
 		if(waserror()) {
-			unlock(i);
+			unlock(P9_LOCKPTR(i));
 			pexit(Enovmem, 1);
 		}
 		i->s = newseg(type, base, len);
@@ -307,7 +307,7 @@ found:
 		poperror();
 	}
 	else
-		incref(i->s);
+		incref(P9_REFPTR(i->s));
 
 	return i;
 }
@@ -331,7 +331,7 @@ imagereclaim(void)
 	if(!canqlock(&imagealloc.ireclaim))
 		return;
 
-	lock(&palloc);
+	lock(P9_LOCKPTR(&palloc));
 	ticks = fastticks(nil);
 	n = 0;
 	/*
@@ -340,16 +340,16 @@ imagereclaim(void)
 	 * backward.
 	 */
 	for(p = palloc.tail; p && p->image && n<1000; p = p->prev) {
-		if(p->ref == 0 && canlock(p)) {
+		if(p->ref == 0 && canlock(P9_LOCKPTR(p))) {
 			if(p->ref == 0) {
 				n++;
 				uncachepage(p);
 			}
-			unlock(p);
+			unlock(P9_LOCKPTR(p));
 		}
 	}
 	ticks = fastticks(nil) - ticks;
-	unlock(&palloc);
+	unlock(P9_LOCKPTR(&palloc));
 	irstats.loops++;
 	irstats.ticks += ticks;
 	if(ticks > irstats.maxt)
@@ -378,10 +378,10 @@ imagechanreclaim(void)
 	 * one of us thanks to the qlock above.
 	 */
 	while(imagealloc.nfreechan > 0){
-		lock(&imagealloc);
+		lock(P9_LOCKPTR(&imagealloc));
 		imagealloc.nfreechan--;
 		c = imagealloc.freechan[imagealloc.nfreechan];
-		unlock(&imagealloc);
+		unlock(P9_LOCKPTR(&imagealloc));
 		cclose(c);
 	}
 
@@ -397,14 +397,14 @@ putimage(Image *i)
 	if(i->notext)
 		return;
 
-	lock(i);
+	lock(P9_LOCKPTR(i));
 	if(--i->ref == 0) {
 		l = &ihash(i->qid.path);
 		mkqid(&i->qid, ~0, ~0, QTFILE);
-		unlock(i);
+		unlock(P9_LOCKPTR(i));
 		c = i->c;
 
-		lock(&imagealloc);
+		lock(P9_LOCKPTR(&imagealloc));
 		for(f = *l; f; f = f->hash) {
 			if(f == i) {
 				*l = i->hash;
@@ -427,11 +427,11 @@ putimage(Image *i)
 			imagealloc.freechan = cp;
 		}
 		imagealloc.freechan[imagealloc.nfreechan++] = c;
-		unlock(&imagealloc);
+		unlock(P9_LOCKPTR(&imagealloc));
 
 		return;
 	}
-	unlock(i);
+	unlock(P9_LOCKPTR(i));
 }
 
 long

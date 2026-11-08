@@ -18,7 +18,11 @@ struct SDperm {
 struct SDpart {
 	uvlong	start;
 	uvlong	end;
-	SDperm;
+#if defined(__clang__) && defined(__x86_64__)
+    P9_EMBED_SDPERM;
+#else
+    SDperm;
+#endif
 	int	valid;
 	ulong	vers;
 };
@@ -28,7 +32,11 @@ struct SDunit {
 	int	subno;
 	uchar	inquiry[255];		/* format follows SCSI spec */
 	uchar	sense[18];		/* format follows SCSI spec */
-	SDperm;
+#if defined(__clang__) && defined(__x86_64__)
+    P9_EMBED_SDPERM;
+#else
+    SDperm;
+#endif
 
 	QLock	ctl;
 	uvlong	sectors;
@@ -56,7 +64,11 @@ struct SDev {
 	char	name[8];
 	SDev*	next;
 
-	QLock;				/* enable/disable */
+#if defined(__clang__) && defined(__x86_64__)
+    P9_EMBED_QLOCK;             /* enable/disable */
+#else
+    QLock;                      /* enable/disable */
+#endif
 	int	enabled;
 	int	nunit;			/* Number of units */
 	QLock	unitlock;		/* `Loading' of units */

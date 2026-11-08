@@ -27,7 +27,7 @@ enum
 typedef struct Globalseg Globalseg;
 struct Globalseg
 {
-	Ref;
+	P9_EMBED_REF;
 	Segment	*s;
 
 	char	*name;

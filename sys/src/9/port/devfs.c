@@ -75,7 +75,7 @@ struct Inner
 
 struct Fsdev
 {
-	Ref;			/* one per Chan doing I/O */
+	P9_EMBED_REF;			/* one per Chan doing I/O */
 	int	gone;		/* true if removed */
 	int	vers;		/* qid version for this device */
 	int	type;		/* Fnone, Fmirror, ... */

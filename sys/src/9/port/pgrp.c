@@ -67,7 +67,7 @@ newrgrp(void)
 void
 closergrp(Rgrp *r)
 {
-	if(decref(r) == 0)
+	if(decref(P9_REFPTR(r)) == 0)
 		free(r);
 }
 
@@ -76,7 +76,7 @@ closepgrp(Pgrp *p)
 {
 	Mhead **h, **e, *f, *next;
 
-	if(decref(p) != 0)
+	if(decref(P9_REFPTR(p)) != 0)
 		return;
 
 	qlock(&p->debug);
@@ -155,10 +155,10 @@ pgrpcpy(Pgrp *to, Pgrp *from)
 	/*
 	 * Allocate mount ids in the same sequence as the parent group
 	 */
-	lock(&mountid);
+	lock(P9_LOCKPTR(&mountid));
 	for(m = order; m; m = m->order)
 		m->copy->mountid = mountid.ref++;
-	unlock(&mountid);
+	unlock(P9_LOCKPTR(&mountid));
 	wunlock(&from->ns);
 }
 
@@ -177,7 +177,7 @@ dupfgrp(Fgrp *f)
 		return new;
 	}
 
-	lock(f);
+	lock(P9_LOCKPTR(f));
 	/* Make new fd list shorter if possible, preserving quantization */
 	new->nfd = f->maxfd+1;
 	i = new->nfd%DELTAFD;
@@ -185,7 +185,7 @@ dupfgrp(Fgrp *f)
 		new->nfd += DELTAFD - i;
 	new->fd = malloc(new->nfd*sizeof(Chan*));
 	if(new->fd == nil){
-		unlock(f);
+		unlock(P9_LOCKPTR(f));
 		free(new);
 		error("no memory for fgrp");
 	}
@@ -194,11 +194,11 @@ dupfgrp(Fgrp *f)
 	new->maxfd = f->maxfd;
 	for(i = 0; i <= f->maxfd; i++) {
 		if(c = f->fd[i]){
-			incref(c);
+			incref(P9_REFPTR(c));
 			new->fd[i] = c;
 		}
 	}
-	unlock(f);
+	unlock(P9_LOCKPTR(f));
 
 	return new;
 }
@@ -212,7 +212,7 @@ closefgrp(Fgrp *f)
 	if(f == 0)
 		return;
 
-	if(decref(f) != 0)
+	if(decref(P9_REFPTR(f)) != 0)
 		return;
 
 	/*
@@ -270,7 +270,7 @@ newmount(Mhead *mh, Chan *to, int flag, char *spec)
 	m = smalloc(sizeof(Mount));
 	m->to = to;
 	m->head = mh;
-	incref(to);
+	incref(P9_REFPTR(to));
 	m->mountid = incref(&mountid);
 	m->mflag = flag;
 	if(spec != 0)

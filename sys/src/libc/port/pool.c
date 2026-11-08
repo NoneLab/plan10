@@ -77,7 +77,8 @@ struct Btail {
 #define B2PT(b) ((Btail*)((uchar*)(b)-sizeof(Btail)))
 #define T2HDR(t) ((Bhdr*)((uchar*)(t)+sizeof(Btail)-(t)->size))
 struct Free {
-			Bhdr;
+	/* C11 overlay preserves Plan 9's embedded header layout. */
+	union { Bhdr _p9_bhdr; struct { ulong magic; ulong size; }; };
 	Free*	left;
 	Free*	right;
 	Free*	next;
@@ -92,23 +93,23 @@ enum {
  * between Bhdr and Allocblk, and between Kempt and Unkempt.
  */
 struct Alloc {
-			Bhdr;
+	union { Bhdr _p9_bhdr; struct { ulong magic; ulong size; }; };
 };
 enum {
 	ALLOC_MAGIC = 0x0A110C09,
-	UNALLOC_MAGIC = 0xCAB00D1E+1,
+	UNALLOC_MAGIC = 0xCAB00D1E + 1,
 };
 
 struct Arena {
-			Bhdr;
+	union { Bhdr _p9_bhdr; struct { ulong magic; ulong size; }; };
 	Arena*	aup;
 	Arena*	down;
 	ulong	asize;
 	ulong	pad;	/* to a multiple of 8 bytes */
 };
 enum {
-	ARENA_MAGIC = 0xC0A1E5CE+1,
-	ARENATAIL_MAGIC = 0xEC5E1A0C+1,
+	ARENA_MAGIC = 0xC0A1E5CE + 1,
+	ARENATAIL_MAGIC = 0xEC5E1A0C + 1,
 };
 #define A2TB(a)	((Bhdr*)((uchar*)(a)+(a)->asize-sizeof(Bhdr)))
 #define A2B(a)	B2NB(a)
@@ -133,10 +134,10 @@ static uchar datamagic[] = { 0xFE, 0xF1, 0xF0, 0xFA };
 static void*	B2D(Pool*, Alloc*);
 static Alloc*	D2B(Pool*, void*);
 static Arena*	arenamerge(Pool*, Arena*, Arena*);
-static void		blockcheck(Pool*, Bhdr*);
-static Alloc*	blockmerge(Pool*, Bhdr*, Bhdr*);
+static void		blockcheck(Pool*, void*);
+static Alloc*	blockmerge(Pool*, void*, void*);
 static Alloc*	blocksetdsize(Pool*, Alloc*, ulong);
-static Bhdr*	blocksetsize(Bhdr*, ulong);
+static Bhdr*	blocksetsize(void*, ulong);
 static ulong	bsize2asize(Pool*, ulong);
 static ulong	dsize2bsize(Pool*, ulong);
 static ulong	getdsize(Alloc*);
@@ -387,7 +388,7 @@ pooladd(Pool *p, Alloc *anode)
 
 	node = (Free*)anode;
 	node->magic = FREE_MAGIC;
-	parent = ltreewalk(&p->freeroot, node->size);
+	parent = ltreewalk((Free**)&p->freeroot, node->size);
 	olst = *parent;
 	lst = listadd(olst, node);
 	if(olst != lst)	/* need to update tree */
@@ -403,7 +404,7 @@ pooldel(Pool *p, Free *node)
 	Free *lst, *olst;
 	Free **parent;
 
-	parent = ltreewalk(&p->freeroot, node->size);
+	parent = ltreewalk((Free**)&p->freeroot, node->size);
 	olst = *parent;
 	assert(olst != nil /* pooldel */);
 
@@ -453,8 +454,9 @@ bsize2asize(Pool *p, ulong sz)
 /* blockmerge: merge a and b, known to be adjacent */
 /* both are removed from pool if necessary. */
 static Alloc*
-blockmerge(Pool *pool, Bhdr *a, Bhdr *b)
+blockmerge(Pool *pool, void *left, void *right)
 {
+	Bhdr *a = left, *b = right;
 	Btail *t;
 
 	assert(B2NB(a) == b);
@@ -484,8 +486,9 @@ blockmerge(Pool *pool, Bhdr *a, Bhdr *b)
 
 /* blocksetsize: set the total size of a block, fixing tail pointers */
 static Bhdr*
-blocksetsize(Bhdr *b, ulong bsize)
+blocksetsize(void *blk, ulong bsize)
 {
+	Bhdr *b = blk;
 	Btail *t;
 
 	assert(b->magic != FREE_MAGIC /* blocksetsize */);
@@ -763,8 +766,9 @@ panicblock(Pool *p, Bhdr *b, char *msg)
 /* blockcheck: ensure a block consistent with our expectations */
 /* should only be called when holding pool lock */
 static void
-blockcheck(Pool *p, Bhdr *b)
+blockcheck(Pool *p, void *blk)
 {
+	Bhdr *b = blk;
 	Alloc *a;
 	Btail *t;
 	int i, n;
@@ -1063,7 +1067,7 @@ poolreallocl(Pool *p, void *v, ulong ndsize)
 	/* maybe the new block is next to us; if so, merge */
 	left = T2HDR(B2PT(a));
 	right = B2NB(a);
-	newb = D2B(p, nv);
+	newb = (Bhdr*)D2B(p, nv);
 	if(left == newb || right == newb) {
 		if(left == newb || left->magic == FREE_MAGIC)
 			a = blockmerge(p, left, a);
@@ -1383,7 +1387,7 @@ poolcheckarena(Pool *p, Arena *a)
 	Bhdr *atail;
 
 	atail = A2TB(a);
-	for(b=a; b->magic != ARENATAIL_MAGIC && b<atail; b=B2NB(b))
+	for(b=(Bhdr*)a; b->magic != ARENATAIL_MAGIC && b<atail; b=B2NB(b))
 		blockcheck(p, b);
 	blockcheck(p, b);
 	if(b != atail)
@@ -1443,7 +1447,7 @@ pooldumparena(Pool *p, Arena *a)
 {
 	Bhdr *b;
 
-	for(b=a; b->magic != ARENATAIL_MAGIC; b=B2NB(b))
+	for(b=(Bhdr*)a; b->magic != ARENATAIL_MAGIC; b=B2NB(b))
 		p->print(p, "(%p %.8lux %lud)", b, b->magic, b->size);
 	p->print(p, "\n");
 }
@@ -1460,7 +1464,8 @@ memmark(void *v, int sig, ulong size)
 	lp = v;
 	elp = lp+size/4;
 	while(lp < elp)
-		*lp++ = (sig<<24) ^ ((uintptr)lp-(uintptr)v);
+		*lp = (sig<<24) ^ ((uintptr)lp-(uintptr)v);
+		lp++;
 	p = (uchar*)lp;
 	ep = (uchar*)v+size;
 	while(p<ep)

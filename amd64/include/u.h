@@ -55,6 +55,25 @@ union FPdbleword
 	};
 };
 
+/* Plan 9's USED instruction is not a Clang keyword. */
+#ifdef __clang__
+#define USED(...) ((void)(__VA_ARGS__))
+/* Plan 9 SET marks locals defined for the old compiler's flow analysis. */
+#define P9_SET_1(a)           ((a) = 0)
+#define P9_SET_2(a, b)        (P9_SET_1(a), P9_SET_1(b))
+#define P9_SET_3(a, b, c)     (P9_SET_1(a), P9_SET_2(b, c))
+#define P9_SET_CHOOSE(a, b, c, name, ...) name
+#define SET(...) P9_SET_CHOOSE(__VA_ARGS__, P9_SET_3, P9_SET_2, P9_SET_1)(__VA_ARGS__)
+#endif
+
+/* Clang must follow the System V AMD64 register/stack varargs ABI. */
+#ifdef __clang__
+typedef __builtin_va_list va_list;
+#define va_start(ap, last) __builtin_va_start(ap, last)
+#define va_arg(ap, type)   __builtin_va_arg(ap, type)
+#define va_end(ap)         __builtin_va_end(ap)
+#define va_copy(dst, src)  __builtin_va_copy(dst, src)
+#else
 typedef	char*	va_list;
 #define va_start(list, start) list =\
 	(sizeof(start) < 8?\
@@ -70,3 +89,5 @@ typedef	char*	va_list;
 	(sizeof(mode) == 4)?\
 		((list += 8), (mode*)list)[-2]:\
 		((list += sizeof(mode)), (mode*)list)[-1])
+
+#endif

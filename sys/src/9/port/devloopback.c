@@ -10,7 +10,7 @@ typedef struct Loop	Loop;
 
 struct Link
 {
-	Lock;
+	P9_EMBED_LOCK;
 
 	int	ref;
 
@@ -38,7 +38,7 @@ struct Link
 
 struct Loop
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	int	ref;
 	int	minmtu;		/* smallest block transmittable */
 	Loop	*next;
@@ -48,7 +48,7 @@ struct Loop
 
 static struct
 {
-	Lock;
+	P9_EMBED_LOCK;
 	ulong	path;
 } loopbackalloc;
 
@@ -143,9 +143,9 @@ loopbackattach(char *spec)
 	lb->ref++;
 	if(lb->ref == 1){
 		for(chan = 0; chan < 2; chan++){
-			lb->link[chan].ci.mode = Trelative;
-			lb->link[chan].ci.a = &lb->link[chan];
-			lb->link[chan].ci.f = linkintr;
+			lb->link[chan].ci.tmode = Trelative;
+			lb->link[chan].ci.ta = &lb->link[chan];
+			lb->link[chan].ci.tf = linkintr;
 			lb->link[chan].limit = Loopqlim;
 			q = qopen(lb->link[chan].limit, 0, 0, 0);
 			lb->link[chan].iq = q;
@@ -587,8 +587,8 @@ linkintr(Ureg*, Timer *ci)
 {
 	Link *link;
 
-	link = ci->a;
-	pushlink(link, ci->ns);
+	link = ci->ta;
+	pushlink(link, ci->tns);
 }
 
 /*
@@ -637,7 +637,7 @@ pushlink(Link *link, vlong now)
 		tin = gtime(bp->rp);
 		if(tin > tout)
 			tout = tin;
-		tout = tout + (BLEN(bp) - Tmsize) * link->delayn;
+		tout = tout + (BLEN(bp) - Tmsize) * link->delaynns;
 
 		/*
 		 * drop packets
@@ -685,7 +685,7 @@ pushlink(Link *link, vlong now)
 	if(!tin || tin > tout && tout)
 		tin = tout;
 
-	link->ci.ns = tin - now;
+	link->ci.tns = tin - now;
 	if(tin){
 		if(tin < now)
 			panic("loopback unfinished business");

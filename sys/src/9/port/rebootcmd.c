@@ -5,7 +5,7 @@
 #include	"fns.h"
 #include	"../port/error.h"
 #include	<a.out.h>
-#include 	"/sys/src/libmach/elf.h"
+#include 	"../../libmach/elf.h"
 
 enum {
 	Ehdr32sz	= 52,

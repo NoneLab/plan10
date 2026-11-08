@@ -60,13 +60,13 @@ struct	Buf
 };
 struct	AQueue
 {
-	Lock;
+	P9_EMBED_LOCK;
 	Buf*	first;
 	Buf*	last;
 };
 static	struct
 {
-	QLock;
+	P9_EMBED_QLOCK;
 	Rendez	vous;
 	int	buffered;		/* number of bytes en route */
 	int	bufinit;		/* boolean if buffers allocated */
@@ -114,7 +114,7 @@ static	struct
 
 static struct
 {
-	Lock;
+	P9_EMBED_LOCK;
 	int	reset;		/* io ports to the sound blaster */
 	int	read;
 	int	write;

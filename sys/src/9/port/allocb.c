@@ -17,7 +17,7 @@ enum
 
 struct
 {
-	Lock;
+	P9_EMBED_LOCK;
 	ulong	bytes;
 } ialloc;
 
@@ -132,9 +132,9 @@ iallocb(int size)
 	setmalloctag(b, getcallerpc(&size));
 	b->flag = BINTR;
 
-	ilock(&ialloc);
+	ilock(P9_LOCKPTR(&ialloc));
 	ialloc.bytes += b->lim - b->base;
-	iunlock(&ialloc);
+	iunlock(P9_LOCKPTR(&ialloc));
 
 	return b;
 }
@@ -167,9 +167,9 @@ freeb(Block *b)
 		return;
 	}
 	if(b->flag & BINTR) {
-		ilock(&ialloc);
+		ilock(P9_LOCKPTR(&ialloc));
 		ialloc.bytes -= b->lim - b->base;
-		iunlock(&ialloc);
+		iunlock(P9_LOCKPTR(&ialloc));
 	}
 
 	/* poison the block in case someone is still holding onto it */

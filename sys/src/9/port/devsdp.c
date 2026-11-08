@@ -115,7 +115,7 @@ enum {
 };
 
 struct Conv {
-	QLock;
+	P9_EMBED_QLOCK;
 	Sdp	*sdp;
 	int	id;
 
@@ -158,7 +158,7 @@ struct Conv {
 };
 
 struct Sdp {
-	QLock;
+	P9_EMBED_QLOCK;
 	Log;
 	int	nconv;
 	Conv *conv[Maxconv];

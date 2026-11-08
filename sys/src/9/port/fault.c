@@ -127,7 +127,7 @@ fixfault(Segment *s, ulong addr, int read, int doputmmu)
 		}
 
 		lkp = *pg;
-		lock(lkp);
+		lock(P9_LOCKPTR(lkp));
 
 		if(lkp->image == &swapimage)
 			ref = lkp->ref + swapcount(lkp->daddr);
@@ -138,7 +138,7 @@ fixfault(Segment *s, ulong addr, int read, int doputmmu)
 			duppage(lkp);
 			ref = lkp->ref;
 		}
-		unlock(lkp);
+		unlock(P9_LOCKPTR(lkp));
 		if(ref > 1){
 			new = newpage(0, &s, addr);
 			if(s == 0)

@@ -52,10 +52,10 @@ newswap(void)
 {
 	uchar *look;
 
-	lock(&swapalloc);
+	lock(P9_LOCKPTR(&swapalloc));
 
 	if(swapalloc.free == 0){
-		unlock(&swapalloc);
+		unlock(P9_LOCKPTR(&swapalloc));
 		return ~0;
 	}
 
@@ -66,7 +66,7 @@ newswap(void)
 	*look = 1;
 	swapalloc.last = look;
 	swapalloc.free--;
-	unlock(&swapalloc);
+	unlock(P9_LOCKPTR(&swapalloc));
 	return (look-swapalloc.swmap) * BY2PG;
 }
 
@@ -75,7 +75,7 @@ putswap(Page *p)
 {
 	uchar *idx;
 
-	lock(&swapalloc);
+	lock(P9_LOCKPTR(&swapalloc));
 	idx = &swapalloc.swmap[((ulong)p)/BY2PG];
 	if(--(*idx) == 0) {
 		swapalloc.free++;
@@ -84,16 +84,16 @@ putswap(Page *p)
 	}
 	if(*idx >= 254)
 		panic("putswap %#p == %ud", p, *idx);
-	unlock(&swapalloc);
+	unlock(P9_LOCKPTR(&swapalloc));
 }
 
 void
 dupswap(Page *p)
 {
-	lock(&swapalloc);
+	lock(P9_LOCKPTR(&swapalloc));
 	if(++swapalloc.swmap[((ulong)p)/BY2PG] == 0)
 		panic("dupswap");
-	unlock(&swapalloc);
+	unlock(P9_LOCKPTR(&swapalloc));
 }
 
 int
@@ -260,14 +260,14 @@ canflush(Proc *p, Segment *s)
 	int i;
 	Proc *ep;
 
-	lock(s);
+	lock(P9_LOCKPTR(s));
 	if(s->ref == 1) {		/* Easy if we are the only user */
 		s->ref++;
-		unlock(s);
+		unlock(P9_LOCKPTR(s));
 		return canpage(p);
 	}
 	s->ref++;
-	unlock(s);
+	unlock(P9_LOCKPTR(s));
 
 	/* Now we must do hardwork to ensure all processes which have tlb
 	 * entries for this segment will be flushed if we succeed in paging it out
@@ -312,7 +312,7 @@ pagepte(int type, Page **pg)
 			break;
 		cachedel(&swapimage, daddr);
 
-		lock(outp);
+		lock(P9_LOCKPTR(outp));
 
 		/* forget anything that it used to cache */
 		uncachepage(outp);
@@ -331,7 +331,7 @@ pagepte(int type, Page **pg)
 		outp->daddr = daddr;
 		cachepage(outp, &swapimage);
 		*pg = (Page*)(daddr|PG_ONSWAP);
-		unlock(outp);
+		unlock(P9_LOCKPTR(outp));
 
 		/* Add page to IO transaction list */
 		iolist[ioptr++] = outp;
@@ -390,9 +390,9 @@ executeio(void)
 		poperror();
 
 		/* Free up the page after I/O */
-		lock(out);
+		lock(P9_LOCKPTR(out));
 		out->ref--;
-		unlock(out);
+		unlock(P9_LOCKPTR(out));
 		putpage(out);
 	}
 	ioptr = 0;
