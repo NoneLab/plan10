@@ -11,11 +11,11 @@
 
 struct
 {
-	int	minpc;
-	int	maxpc;
+	ulong	minpc;
+	ulong	maxpc;
 	int	nbuf;
 	int	time;
-	ulong	*buf;
+	u32int	*buf;
 }kprof;
 
 enum{
@@ -113,7 +113,7 @@ static long
 kprofread(Chan *c, void *va, long n, vlong off)
 {
 	ulong end;
-	ulong w, *bp;
+	u32int w, *bp;
 	uchar *a, *ea;
 	ulong offset = off;
 

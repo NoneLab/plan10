@@ -54,7 +54,7 @@ p9_amd64_serialinit(void)
     outb(COM1 + REG_LCR, 3);   /* 8N1 */
     outb(COM1 + REG_FCR, 0xc7);
     outb(COM1 + REG_MCR, 3);
-    screenputs = serialputs;
+    screenputs = nil;
 }
 
 /* The original devcons.c sends to its selected serial backend, if any. */

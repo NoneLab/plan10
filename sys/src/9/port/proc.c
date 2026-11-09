@@ -742,7 +742,11 @@ procinit0(void)		/* bad planning - clashes with devproc.c */
 	Proc *p;
 	int i;
 
+#ifdef P9_PROC_ALIGN
+	procalloc.free = xspanalloc(conf.nproc * sizeof(Proc), P9_PROC_ALIGN, 0);
+#else
 	procalloc.free = xalloc(conf.nproc*sizeof(Proc));
+#endif
 	if(procalloc.free == nil){
 		xsummary();
 		panic("cannot allocate %lud procs (%ludMB)\n", conf.nproc, conf.nproc*sizeof(Proc)/(1024*1024));

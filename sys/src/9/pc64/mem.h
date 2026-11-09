@@ -24,6 +24,8 @@
 #define KSTACK      (16 * 1024)
 #define MAXMACH     32
 
+#define P9_VECTOR_SYSCALL 0x40
+
 #define HZ          100
 #define MS2HZ       (1000 / HZ)
 #define TK2SEC(t)   ((t) / HZ)
@@ -80,5 +82,7 @@
 #define UESEL       SELECTOR(UESEG, SELGDT, 3)
 #define UDSEL       SELECTOR(UDSEG, SELGDT, 3)
 #define TSSSEL      SELECTOR(TSSSEG, SELGDT, 0)
+
+#define P9_PROC_ALIGN 16
 
 #endif

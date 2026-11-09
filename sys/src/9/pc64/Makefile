@@ -14,8 +14,9 @@ ARCH_INCLUDES := \
     -Iamd64/include \
     -Isys/include \
     -Isys/src/9/pc64 \
+    -I$(BUILD_DIR)/generated \
     -Isys/src/9/port \
-    -I$(BUILD_DIR)/generated
+    -Isys/src/libc/9syscall
 
 ARCH_CFLAGS := \
     --target=$(TARGET_TRIPLE) \
@@ -87,6 +88,10 @@ $(BUILD_DIR)/obj/port/%.o: sys/src/9/port/%.c | $(BUILD_DIR)/generated/errstr.h
 	@mkdir -p "$(dir $@)"
 	$(CLANG) $(ARCH_CFLAGS) $(ARCH_CPPFLAGS) -c "$<" -o "$@"
 
+$(BUILD_DIR)/obj/port/%.o: sys/src/9/port/%.cc | $(BUILD_DIR)/generated/errstr.h
+	@mkdir -p "$(dir $@)"
+	$(CLANGPP) $(ARCH_CFLAGS) $(ARCH_CPPFLAGS) -c "$<" -o "$@"
+
 # Plan 9's rc-based generator produces definitions consumed by proc.c.
 # This GNU Make version keeps generated source out of the original tree.
 $(BUILD_DIR)/generated/errstr.h: sys/src/9/port/error.h sys/src/9/pc64/generrstr.py
@@ -119,6 +124,59 @@ port-audit: $(BUILD_DIR)/generated/errstr.h
 # unported Plan 9 kernel subsystems remain unresolved by design.
 # ---------------------------------------------------------------------------
 
+# Original Plan 9 initcode source with an AMD64 replacement entry, built
+# for AMD64 as a single embedded user text page, not a substitute program.
+INIT_USER_CFLAGS := --target=$(TARGET_TRIPLE) -std=c11 -Os -g \
+    -ffreestanding -fno-builtin -fno-stack-protector -fno-pic \
+    -fno-asynchronous-unwind-tables -fno-unwind-tables \
+    -fno-exceptions -mno-red-zone -mcmodel=small -fno-plt \
+    -ffunction-sections -fdata-sections \
+    -Isys/include -Iamd64/include -Isys/src/libc/9syscall \
+    -Isys/src/libc/amd64
+
+INIT_USER_OBJ := \
+    $(BUILD_DIR)/obj/userinit/initcode.o \
+    $(BUILD_DIR)/obj/userinit/initcalls.o \
+    $(BUILD_DIR)/obj/userinit/userstart.o \
+    $(BUILD_DIR)/obj/userlib/syscall.o
+INIT_USER_ELF := $(BUILD_DIR)/userinit/initcode.elf
+INIT_USER_BIN := $(BUILD_DIR)/userinit/initcode.bin
+INIT_USER_HEADER := $(BUILD_DIR)/generated/initcode_amd64.h
+
+$(BUILD_DIR)/obj/userinit/initcode.o: sys/src/9/port/initcode.c
+	@mkdir -p "$(dir $@)"
+	$(CLANG) $(INIT_USER_CFLAGS) -c "$<" -o "$@"
+
+$(BUILD_DIR)/obj/userinit/initcalls.o: sys/src/libc/amd64/initcalls.c
+	@mkdir -p "$(dir $@)"
+	$(CLANG) $(INIT_USER_CFLAGS) -c "$<" -o "$@"
+
+$(BUILD_DIR)/obj/userinit/userstart.o: sys/src/9/pc64/userstart.S
+	@mkdir -p "$(dir $@)"
+	$(CLANG) --target=$(TARGET_TRIPLE) -mno-red-zone -c "$<" -o "$@"
+
+$(INIT_USER_ELF): $(INIT_USER_OBJ) sys/src/9/pc64/initcode.ld
+	@mkdir -p "$(dir $@)"
+	$(LLD) -m elf_x86_64 -nostdlib -static --gc-sections \
+	    --build-id=none -T sys/src/9/pc64/initcode.ld \
+	    -o "$@" $(INIT_USER_OBJ)
+
+$(INIT_USER_BIN): $(INIT_USER_ELF)
+	@mkdir -p "$(dir $@)"
+	$(OBJCOPY) -O binary "$<" "$@"
+
+$(INIT_USER_HEADER): $(INIT_USER_BIN) sys/src/9/pc64/geninitcode.py
+	$(PYTHON) sys/src/9/pc64/geninitcode.py "$<" "$@"
+
+$(BUILD_DIR)/obj/pc64/userinit.o: $(INIT_USER_HEADER)
+
+.PHONY: user-initcode-check
+user-initcode-check: $(INIT_USER_HEADER)
+	$(PYTHON) tests/amd64/user_initcode.py "$(INIT_USER_ELF)" "$(INIT_USER_BIN)"
+	@echo "Native original Plan 9 initcode image: PASS (static link/address test)"
+
+check: user-initcode-check
+
 MACHINE_C_NAMES := \
     dat \
     config \
@@ -131,6 +189,9 @@ MACHINE_C_NAMES := \
     mmuproc \
     segments \
     trap64 \
+    syscall64 \
+    userentry \
+	userinit \
     traputil \
     procmach \
     power \
@@ -142,6 +203,7 @@ MACHINE_ASM_NAMES := \
     lowlevel \
     trapvec \
     processentry \
+    useriret \
     entry \
     atomic
 
@@ -457,3 +519,49 @@ qemu: kernel-verify qemu-preflight
 # With the target-specific variable, all QEMU options stay in one recipe.
 qemu-gdb: QEMU_EXTRA_ARGS += -S -gdb tcp::$(QEMU_GDB_PORT)
 qemu-gdb: qemu
+
+# ---------------------------------------------------------------------------
+# AMD64 syscall dispatch table
+#
+# Keep the original Plan 9 syscall table unchanged.
+# Generate an AMD64-specific copy using C11 syntax.
+# ---------------------------------------------------------------------------
+
+SYSCALL_TABLE_SRC := sys/src/9/port/systab.h
+
+SYSCALL_TABLE_HDR := \
+    $(BUILD_DIR)/generated/systab_amd64.h
+
+SYSCALL_NUMBERS_HDR := \
+    sys/src/libc/9syscall/sys.h
+
+
+$(SYSCALL_TABLE_HDR): \
+    $(SYSCALL_TABLE_SRC) \
+    $(SYSCALL_NUMBERS_HDR)
+	@mkdir -p "$(dir $@)"
+
+	sed -E \
+	    -e 's@^#include "/sys/src/libc/9syscall/sys.h"@#include "sys.h"@' \
+	    -e 's/^([[:space:]]*\[[^]]+\])[[:space:]]+/\1 = /' \
+	    "$<" > "$@"
+
+
+# ---------------------------------------------------------------------------
+# Kernel syscall dispatcher dependencies
+# ---------------------------------------------------------------------------
+
+$(BUILD_DIR)/obj/pc64/syscall64.o: \
+    $(SYSCALL_TABLE_HDR)
+
+USER_SYSCALL_OBJ := $(BUILD_DIR)/obj/userlib/syscall.o
+$(USER_SYSCALL_OBJ): sys/src/libc/amd64/syscall.S
+	@mkdir -p "$(dir $@)"
+	$(CLANG) --target=$(TARGET_TRIPLE) -mno-red-zone -c "$<" -o "$@"
+
+.PHONY: user-abi-check
+user-abi-check: $(USER_SYSCALL_OBJ) $(BUILD_DIR)/obj/pc64/useriret.o $(BUILD_DIR)/obj/pc64/syscall64.o $(BUILD_DIR)/obj/abi.o
+	$(PYTHON) tests/amd64/user_abi.py \
+		"$(USER_SYSCALL_OBJ)" \
+		"$(BUILD_DIR)/obj/pc64/useriret.o" \
+		"$(BUILD_DIR)/obj/pc64/syscall64.o"

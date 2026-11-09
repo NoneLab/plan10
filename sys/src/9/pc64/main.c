@@ -104,6 +104,7 @@ main(void)
     meminit();
     confinit();
     xinit();
+    quotefmtinstall();
     printinit();
     timersinit();
     procinit0();
@@ -113,8 +114,8 @@ main(void)
     swapinit();
     p9_amd64_irqstart();
 
-    print("Plan 9/amd64: core kernel initialised, userspace pending\n");
-    /* Userspace is a later milestone; do not enter it via fake initcode. */
-    for(;;)
-        __asm__ volatile("sti; hlt" ::: "memory");
+    print("Plan 9/amd64: core kernel initialised, starting native userinit\n");
+    userinit();
+    active.thunderbirdsarego = 1;
+    schedinit();
 }

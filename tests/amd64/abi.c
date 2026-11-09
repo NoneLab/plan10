@@ -47,6 +47,11 @@ CHECK(__builtin_offsetof(Ureg, ip) == 144);
 CHECK(__builtin_offsetof(Ureg, sp) == 168);
 CHECK(__builtin_offsetof(Ureg, ss) == 176);
 CHECK(sizeof(Ureg) == 184);
+CHECK(P9_VECTOR_SYSCALL == 0x40);
+CHECK(UESEL == 0x23);
+CHECK(UDSEL == 0x1b);
+CHECK(sizeof(Sargs) == MAXSYSARG * BY2WD);
+
 CHECK(sizeof(Label) == 64);
 CHECK(__builtin_offsetof(Label, sp) == 0);
 CHECK(__builtin_offsetof(Label, pc) == 8);

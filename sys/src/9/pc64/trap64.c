@@ -50,7 +50,7 @@ trapinit0(void)
         idt[i].offset_low = addr;
         idt[i].selector = KESEL;
         idt[i].ist = (i == 8) ? 1 : 0; /* #DF gets its own IST */
-        idt[i].attr = 0x8e; /* present, DPL=0, interrupt gate */
+        idt[i].attr = i == P9_VECTOR_SYSCALL ? 0xee : 0x8e;
         idt[i].offset_middle = addr >> 16;
         idt[i].offset_high = addr >> 32;
         idt[i].reserved = 0;
@@ -69,9 +69,70 @@ trapinit0(void)
 void
 p9_amd64_trap(Ureg *ur)
 {
+    if (ur->type == P9_VECTOR_SYSCALL)
+    {
+        if (!userureg(ur) || up == nil)
+            panic("pc64: syscall from invalid CPU context: cs %#llux", (uvlong)ur->cs);
+
+        /* Single-shot evidence of an actual CPL3 -> CPL0 transition. */
+        {
+            static int firstusercall = 0;
+            if(!firstusercall)
+            {
+                firstusercall = 1;
+                iprint("pc64: first CPL3 syscall nr=%llud ip=%#llux cs=%#llux\n",
+                       (uvlong)ur->ax, (uvlong)ur->ip, (uvlong)ur->cs);
+            }
+        }
+        p9_amd64_syscall(ur);
+        return;
+    }
+
+    if (ur->type == 14)
+    {
+        ulong addr;
+        int saved, read;
+
+        addr = getcr2();
+        read = (ur->error & 2) == 0;
+        if (userureg(ur))
+        {
+            static int firstuserfault = 0;
+            if (!firstuserfault)
+            {
+                firstuserfault = 1;
+                iprint("pc64: first CPL3 page fault va=%#llux ip=%#llux\n", (uvlong)addr, (uvlong)ur->ip);
+            }
+        }
+
+        if (up != nil && addr < USTKTOP)
+        {
+            saved = splhi();
+            if (fault(addr, read) == 0)
+            {
+                splx(saved);
+                return;
+            }
+            splx(saved);
+            panic("pc64: unresolved page fault va %#llux ip %#llux err %#llux",
+                (uvlong)addr, (uvlong)ur->ip, (uvlong)ur->error);
+        }
+    }
+
     if(ur->type == 32){
         outb(0x20, 0x20);       /* master PIC EOI, IRQ0 */
         timerintr(ur, 0);
+
+        if (up != nil &&
+            up->state == Running &&
+            up->delaysched != 0
+        )
+        {
+            splhi();
+            sched();
+            splhi();
+        }
+
         return;
     }
     panic("amd64 exception/irq: vector %llud err %#llux ip %#llux cs %#llux",
