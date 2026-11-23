@@ -825,8 +825,12 @@ sseek(ulong *arg)
 		error(Eisstream);
 
 	off = 0;
+#if defined(__clang__) && defined(__x86_64__)
+	o.v = (vlong)arg[2];
+#else
 	o.u[0] = arg[2];
 	o.u[1] = arg[3];
+#endif
 	switch(arg[4]){
 	case 0:
 		off = o.v;

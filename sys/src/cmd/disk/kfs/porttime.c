@@ -69,7 +69,7 @@ klocaltime(long tim, Tm *ct)
  * The value is the day number of the last
  * Sunday before or after the day.
  */
-static
+static int
 sunday(Tm *t, int d)
 {
 	if(d >= 58)
@@ -179,7 +179,7 @@ Tfmt(Fmt *f1)
 	return fmtstrcpy(f1, s);
 }
 
-static
+static int
 dysize(int y)
 {
 

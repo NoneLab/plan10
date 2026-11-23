@@ -18,6 +18,42 @@ enum
 	Bracteof,
 };
 
+#ifdef P9_NATIVE_BOOT64
+#define P9_BIOBUFHDR_MEMBERS \
+	int icount; \
+	int ocount; \
+	int rdline; \
+	int runesize; \
+	int state; \
+	int fid; \
+	int flag; \
+	vlong offset; \
+	int bsize; \
+	uchar* bbuf; \
+	uchar* ebuf; \
+	uchar* gbuf
+
+struct Biobufhdr
+{
+	P9_BIOBUFHDR_MEMBERS;
+};
+
+struct Biobuf
+{
+	union 
+	{
+		Biobufhdr _p9_headers;
+		struct 
+		{
+			P9_BIOBUFHDR_MEMBERS;
+		};
+	};
+	uchar b[Bungetsize + Bsize];
+};
+
+#undef P9_BIOBUFHDR_MEMBERS
+
+#else
 struct	Biobufhdr
 {
 	int	icount;		/* neg num of bytes at eob */
@@ -39,6 +75,7 @@ struct	Biobuf
 	Biobufhdr;
 	uchar	b[Bungetsize+Bsize];
 };
+#endif
 
 /* Dregs, redefined as functions for backwards compatibility */
 #define	BGETC(bp)	Bgetc(bp)

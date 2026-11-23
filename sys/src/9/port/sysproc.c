@@ -9,6 +9,10 @@
 
 #include	<a.out.h>
 
+#ifdef P9_NATIVE_EXEC64
+#include "../pc64/exec64.h"
+#endif
+
 int	shargs(char*, int, char**);
 
 extern void checkpages(void);
@@ -227,7 +231,14 @@ sysexec(ulong *arg)
 	char *progarg[sizeof(Exec)/2+1], *elem, progelem[64];
 	ulong ssize, spage, nargs, nbytes, n, bssend;
 	int indir;
+#ifdef P9_NATIVE_EXEC64
+	uchar execraw[P9_EXEC64_HEADER_SIZE];
+	P9Exec64 exec64;
+	ulong hdrsize = P9_EXEC64_HEADER_SIZE;
+#else
 	Exec exec;
+	ulong hdrsize = sizeof(Exec);
+#endif
 	char line[sizeof(Exec)];
 	Fgrp *f;
 	Image *img;
@@ -253,16 +264,32 @@ sysexec(ulong *arg)
 		if(!indir)
 			kstrdup(&elem, up->genbuf);
 
+#ifdef P9_NATIVE_EXEC64
+		n = devtab[tc->type]->read(tc, execraw, sizeof(execraw), 0);
+		if (n < 2)
+			error(Ebadexec);
+
+		magic = 0;
+		text = entry = 0;
+		
+		if (p9_exec64_decode(execraw, n, &exec64) == 0)
+		{
+			magic = exec64.magic;
+			text = exec64.text;
+			entry = exec64.entry;
+		}
+#else
 		n = devtab[tc->type]->read(tc, &exec, sizeof(Exec), 0);
 		if(n < 2)
 			error(Ebadexec);
 		magic = l2be(exec.magic);
 		text = l2be(exec.text);
 		entry = l2be(exec.entry);
-		if(n==sizeof(Exec) && (magic == AOUT_MAGIC)){
-			if(text >= USTKTOP-UTZERO
-			|| entry < UTZERO+sizeof(Exec)
-			|| entry >= UTZERO+sizeof(Exec)+text)
+#endif
+		if(n==hdrsize && (magic == AOUT_MAGIC)){
+			if(text >= USTKTOP-UTZERO-hdrsize
+			|| entry < UTZERO+hdrsize
+			|| entry >= UTZERO+hdrsize+text)
 				error(Ebadexec);
 			break; /* for binary */
 		}
@@ -270,7 +297,11 @@ sysexec(ulong *arg)
 		/*
 		 * Process #! /bin/sh args ...
 		 */
+#ifdef P9_NATIVE_EXEC64
+		memmove(line, execraw, n);
+#else
 		memmove(line, &exec, sizeof(Exec));
+#endif
 		if(indir || line[0]!='#' || line[1]!='!')
 			error(Ebadexec);
 		n = shargs(line, n, progarg);
@@ -293,9 +324,14 @@ sysexec(ulong *arg)
 		cclose(tc);
 	}
 
+#ifdef P9_NATIVE_EXEC64
+	data = exec64.data;
+	bss = exec64.bss;
+#else
 	data = l2be(exec.data);
 	bss = l2be(exec.bss);
-	t = UTROUND(UTZERO+sizeof(Exec)+text);
+#endif
+	t = UTROUND(UTZERO+hdrsize+text);
 	d = (t + data + (BY2PG-1)) & ~(BY2PG-1);
 	bssend = t + data + bss;
 	b = (bssend + (BY2PG-1)) & ~(BY2PG-1);
@@ -332,8 +368,13 @@ sysexec(ulong *arg)
 	 * 8-byte align SP for those (e.g. sparc) that need it.
 	 * execregs() will subtract another 4 bytes for argc.
 	 */
+#ifdef P9_NATIVE_EXEC64
+	if ((ssize + BY2WD) & (2 * BY2WD - 1))
+		ssize += BY2WD;
+#else
 	if((ssize+4) & 7)
 		ssize += 4;
+#endif
 	spage = (ssize+(BY2PG-1)) >> PGSHIFT;
 
 	/*
@@ -435,7 +476,7 @@ sysexec(ulong *arg)
 	up->seg[TSEG] = ts;
 	ts->flushme = 1;
 	ts->fstart = 0;
-	ts->flen = sizeof(Exec)+text;
+	ts->flen = hdrsize+text;
 	unlock(P9_LOCKPTR(img));
 
 	/* Data. Shared. */

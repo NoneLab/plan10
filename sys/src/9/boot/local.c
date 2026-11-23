@@ -155,7 +155,29 @@ runv(char **argv)
 void
 run(char *file, ...)
 {
+#ifdef P9_NATIVE_BOOT64
+	va_list ap;
+	char* argv[64], *s;
+	int n;
+
+	argv[0] = file;
+	n = 1;
+	va_start(ap, file);
+	while(n < nelem(argv))
+	{
+		s = va_arg(ap, char*);
+		argv[n++] = s;
+		if (s == nil)
+			break;
+	}
+	
+	va_end(ap);
+	if (n == nelem(argv) && argv[n - 1] != nil)
+		fatal("run: too many arguments");
+	runv(argv);
+#else
 	runv(&file);
+#endif
 }
 
 static int

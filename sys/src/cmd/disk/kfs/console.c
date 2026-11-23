@@ -271,7 +271,7 @@ f_clri(Chan *cp, Oldfcall *in, Oldfcall *ou)
 out:
 	ou->fid = in->fid;
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 }
 
 int
@@ -355,9 +355,9 @@ con_swap(int fid1, int fid2)
 	mkqid(&f2->qid, d2, 1);
 out:
 	if(f1)
-		qunlock(f1);
+		qunlock(&f1->qlock);
 	if(f2)
-		qunlock(f2);
+		qunlock(&f2->qlock);
 	if(p1)
 		putbuf(p1);
 	if(p2 && p2!=p1)

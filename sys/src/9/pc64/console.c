@@ -20,6 +20,7 @@
 #define TX_READY     0x20
 
 extern void (*screenputs)(char *, int);
+extern Queue* kbdq;
 
 static void
 serialputc(int c)
@@ -62,6 +63,39 @@ void
 uartputs(char *s, int n)
 {
     serialputs(s, n);
+}
+
+static void
+p9_amd64_serialrxpoll(void)
+{
+    int ch, n;
+
+    if (kbdq == nil)
+        return;
+
+    for (n = 0; n < 64; n++)
+    {
+        if ((inb(COM1 + REG_LSR) & 0x01) == 0)
+            break;
+
+        ch = inb(COM1 + REG_DATA) & 0xff;
+        kbdcr2nl(kbdq, ch);
+    }
+}
+
+void
+p9_amd64_consoleinputinit(void)
+{
+    if(kbdq != nil)
+        return;
+
+    kbdq = qopen(4 * 1024, 0, nil, nil);
+    if (kbdq == nil)
+        panic("pc64: cannot allocate console input queue");
+
+    qnoblock(kbdq, 1);
+
+    addclock0link(p9_amd64_serialrxpoll, 1);
 }
 
 /* Polling debugger input; used by the original Plan 9 /port/rdb code. */

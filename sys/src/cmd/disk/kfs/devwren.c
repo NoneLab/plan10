@@ -9,7 +9,7 @@ enum{
 typedef struct Wren	Wren;
 
 struct Wren{
-	QLock;
+	QLock qlock;
 	Device	dev;
 	uvlong	size;
 	int	fd;
@@ -87,9 +87,9 @@ wrenream(Device dev)
 	fd = w->fd;
 	memset(buf, 0, sizeof buf);
 	sprint(buf+256, "%s%d\n", WMAGIC, RBUFSIZE);
-	qlock(w);
+	qlock(&w->qlock);
 	i = seek(fd, 0, 0) < 0 || write(fd, buf, RBUFSIZE) != RBUFSIZE;
-	qunlock(w);
+	qunlock(&w->qlock);
 	if(i < 0)
 		panic("can't ream disk");
 }
@@ -149,9 +149,9 @@ wrenread(Device dev, long addr, void *b)
 
 	w = wren(dev);
 	fd = w->fd;
-	qlock(w);
+	qlock(&w->qlock);
 	i = seek(fd, (vlong)addr*RBUFSIZE, 0) == -1 || read(fd, b, RBUFSIZE) != RBUFSIZE;
-	qunlock(w);
+	qunlock(&w->qlock);
 	if(i)
 		print("wrenread failed: %r\n");
 	return i;
@@ -165,9 +165,9 @@ wrenwrite(Device dev, long addr, void *b)
 
 	w = wren(dev);
 	fd = w->fd;
-	qlock(w);
+	qlock(&w->qlock);
 	i = seek(fd, (vlong)addr*RBUFSIZE, 0) == -1 || write(fd, b, RBUFSIZE) != RBUFSIZE;
-	qunlock(w);
+	qunlock(&w->qlock);
 	if(i)
 		print("wrenwrite failed: %r\n");
 	return i;

@@ -26,7 +26,7 @@ getbuf(Device dev, long addr, int flag)
 	hp = &hiob[h];
 
 loop:
-	lock(hp);
+	lock(&hp->lock);
 
 /*
  * look for it in the active list
@@ -43,10 +43,10 @@ loop:
 				p->back->fore = p;
 				hp->link = p;
 			}
-			unlock(hp);
-			qlock(p);
+			unlock(&hp->lock);
+			qlock(&p->qlock);
 			if(p->addr != addr || devcmp(p->dev, dev)) {
-				qunlock(p);
+				qunlock(&p->qlock);
 				goto loop;
 			}
 			p->flags |= flag;
@@ -59,7 +59,7 @@ loop:
 			break;
 	}
 	if(flag & Bprobe) {
-		unlock(hp);
+		unlock(&hp->lock);
 		return 0;
 	}
 
@@ -69,9 +69,9 @@ loop:
  */
 xloop:
 	p = s->back;
-	if(!canqlock(p)) {
+	if(!canqlock(&p->qlock)) {
 		if(p == hp->link) {
-			unlock(hp);
+			unlock(&hp->lock);
 			print("iobuf all locked\n");
 			goto loop;
 		}
@@ -84,9 +84,9 @@ xloop:
 	 * getbuf/putbuf. deadlock!
 	 */
 	if(p->flags & Bres) {
-		qunlock(p);
+		qunlock(&p->qlock);
 		if(p == hp->link) {
-			unlock(hp);
+			unlock(&hp->lock);
 			print("iobuf all resed\n");
 			goto loop;
 		}
@@ -94,17 +94,17 @@ xloop:
 		goto xloop;
 	}
 	if(p->flags & Bmod) {
-		unlock(hp);
+		unlock(&hp->lock);
 		if(!devwrite(p->dev, p->addr, p->xiobuf))
 			p->flags &= ~(Bimm|Bmod);
-		qunlock(p);
+		qunlock(&p->qlock);
 		goto loop;
 	}
 	hp->link = p;
 	p->addr = addr;
 	p->dev = dev;
 	p->flags = flag;
-	unlock(hp);
+	unlock(&hp->lock);
 	p->iobuf = p->xiobuf;
 	if(flag & Bread) {
 		if(devread(p->dev, p->addr, p->iobuf)) {
@@ -112,7 +112,7 @@ xloop:
 			p->dev = devnone;
 			p->addr = -1;
 			p->iobuf = (char*)-1;
-			qunlock(p);
+			qunlock(&p->qlock);
 			return 0;
 		}
 		cons.bread.count++;
@@ -139,7 +139,7 @@ syncblock(void)
 	for(h=0; h<nhiob; h++) {
 		q = 0;
 		hp = &hiob[h];
-		lock(hp);
+		lock(&hp->lock);
 		s = hp->link;
 		for(p=s;;) {
 			if(p->flags & Bmod) {
@@ -151,19 +151,19 @@ syncblock(void)
 			if(p == s)
 				break;
 		}
-		unlock(hp);
+		unlock(&hp->lock);
 		if(q) {
-			if(!canqlock(q)) {
+			if(!canqlock(&q->qlock)) {
 				flag = 1;		/* missed -- was locked */
 				continue;
 			}
 			if(!(q->flags & Bmod)) {
-				qunlock(q);
+				qunlock(&q->qlock);
 				continue;
 			}
 			if(!devwrite(q->dev, q->addr, q->xiobuf))
 				q->flags &= ~(Bmod|Bimm);
-			qunlock(q);
+			qunlock(&q->qlock);
 		}
 	}
 	return flag;
@@ -184,7 +184,7 @@ sync(char *reason)
 void
 putbuf(Iobuf *p)
 {
-	if(canqlock(p))
+	if(canqlock(&p->qlock))
 		print("buffer not locked %D(%ld)\n", p->dev, p->addr);
 	if(p->flags & Bimm) {
 		if(!(p->flags & Bmod))
@@ -193,7 +193,7 @@ putbuf(Iobuf *p)
 			p->flags &= ~(Bmod|Bimm);
 	}
 	p->iobuf = (char*)-1;
-	qunlock(p);
+	qunlock(&p->qlock);
 }
 
 int

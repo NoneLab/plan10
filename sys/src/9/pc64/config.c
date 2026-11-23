@@ -21,6 +21,7 @@ extern Dev srvdevtab;
 extern Dev dupdevtab;
 extern Dev kprofdevtab;
 extern Dev wddevtab;
+extern Dev sddevtab;
 
 Dev *devtab[] = {
     &rootdevtab,
@@ -33,13 +34,14 @@ Dev *devtab[] = {
     &dupdevtab,
     &kprofdevtab,
     &wddevtab,
+    &sddevtab,
     nil,
 };
 
 /* Report the actual machine implementation to #c/config. */
 char configfile[] = "dev\n"
                     "\troot\n\tcons\n\tenv\n\tpipe\n\tproc\n"
-                    "\tmnt\n\tsrv\n\tdup\n\tkprof\n\twd\n";
+                    "\tmnt\n\tsrv\n\tdup\n\tkprof\n\twd\n\tsd\n";
 char *conffile = "pc64/pc64";
 int cpuserver = 0;
 ulong kerndate;

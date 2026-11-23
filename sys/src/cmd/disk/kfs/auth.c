@@ -6,7 +6,6 @@
 #include	"all.h"
 #include	"9p1.h"
 
-int allownone;
 Nvrsafe nvr;
 int didread;
 

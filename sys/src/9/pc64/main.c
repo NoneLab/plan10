@@ -21,15 +21,19 @@ Conf conf;
 
 extern void mmuinit0(void);
 extern void p9_amd64_serialinit(void);
+extern void p9_amd64_consoleinputinit(void);
 extern void p9_amd64_clockinit(void);
 extern int p9_amd64_memregion(ulong *, ulong *);
 extern void p9_amd64_picinit(void);
 extern void p9_amd64_irqstart(void);
 
+extern char* p9_amd64_idepartconf(void);
+
 char *
 getconf(char *name)
 {
-    USED(name);
+    if (strcmp(name, "sdC0part") == 0)
+        return p9_amd64_idepartconf();
     /* Until plan9.ini/multiboot cmdline parsing is installed, no options. */
     return nil;
 }
@@ -109,9 +113,11 @@ main(void)
     timersinit();
     procinit0();
     initseg();
+    bootlinks();
     chandevreset();
     pageinit();
     swapinit();
+    p9_amd64_consoleinputinit();
     p9_amd64_irqstart();
 
     print("Plan 9/amd64: core kernel initialised, starting native userinit\n");

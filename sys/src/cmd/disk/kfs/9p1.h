@@ -108,6 +108,6 @@ int	convS2M9p1(Oldfcall*, uchar*);
 void	fcall9p1(Chan*, Oldfcall*, Oldfcall*);
 int	authorize(Chan*, Oldfcall*, Oldfcall*);
 
-void	(*call9p1[MAXSYSCALL])(Chan*, Oldfcall*, Oldfcall*);
+extern void	(*call9p1[MAXSYSCALL])(Chan*, Oldfcall*, Oldfcall*);
 
 extern Nvrsafe nvr;

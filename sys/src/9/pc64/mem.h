@@ -25,6 +25,7 @@
 #define MAXMACH     32
 
 #define P9_VECTOR_SYSCALL 0x40
+#define P9_NATIVE_EXEC64 1
 
 #define HZ          100
 #define MS2HZ       (1000 / HZ)

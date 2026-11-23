@@ -90,7 +90,11 @@ Binits(Biobufhdr *bp, int f, int mode, uchar *p, int size)
 int
 Binit(Biobuf *bp, int f, int mode)
 {
+#ifdef P9_NATIVE_BOOT64
+	return Binits(&bp->_p9_headers, f, mode, bp->b, sizeof(bp->b));
+#else
 	return Binits(bp, f, mode, bp->b, sizeof(bp->b));
+#endif
 }
 
 Biobuf*
@@ -113,7 +117,11 @@ Bopen(char *name, int mode)
 	if(f < 0)
 		return 0;
 	bp = malloc(sizeof(Biobuf));
+#ifdef P9_NATIVE_BOOT64
+	Binits(&bp->_p9_headers, f, mode, bp->b, sizeof(bp->b));
+#else
 	Binits(bp, f, mode, bp->b, sizeof(bp->b));
+#endif
 	bp->flag = Bmagic;			/* mark bp open & malloced */
 	return bp;
 }

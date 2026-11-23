@@ -153,7 +153,7 @@ out:
 	if(p)
 		putbuf(p);
 	if(f) {
-		qunlock(f);
+		qunlock(&f->qlock);
 		if(ou->err)
 			freefp(f);
 	}
@@ -203,9 +203,9 @@ f_clone(Chan *cp, Oldfcall *in, Oldfcall *ou)
 out:
 	ou->fid = fid;
 	if(f1)
-		qunlock(f1);
+		qunlock(&f1->qlock);
 	if(f2)
-		qunlock(f2);
+		qunlock(&f2->qlock);
 }
 
 void
@@ -318,7 +318,7 @@ out:
 	if(p)
 		putbuf(p);
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 }
 
 void
@@ -354,7 +354,7 @@ f_clunk(Chan *cp, Oldfcall *in, Oldfcall *ou)
 
 out:
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 	ou->fid = in->fid;
 }
 
@@ -541,7 +541,7 @@ out:
 	if(p)
 		putbuf(p);
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 	ou->fid = in->fid;
 }
 
@@ -743,7 +743,7 @@ out:
 	if(p)
 		putbuf(p);
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 	ou->fid = in->fid;
 }
 
@@ -873,7 +873,7 @@ out:
 	if(p)
 		putbuf(p);
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 	ou->fid = in->fid;
 	ou->count = nread;
 	if(CHAT(cp))
@@ -974,7 +974,7 @@ out:
 	if(p)
 		putbuf(p);
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 	ou->fid = in->fid;
 	ou->count = nwrite;
 }
@@ -1083,7 +1083,7 @@ f_remove(Chan *cp, Oldfcall *in, Oldfcall *ou)
 out:
 	ou->fid = in->fid;
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 }
 
 void
@@ -1122,7 +1122,7 @@ out:
 	if(p)
 		putbuf(p);
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 	ou->fid = in->fid;
 }
 
@@ -1311,7 +1311,7 @@ out:
 	if(p1)
 		putbuf(p1);
 	if(f)
-		qunlock(f);
+		qunlock(&f->qlock);
 	ou->fid = in->fid;
 }
 

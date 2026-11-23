@@ -1,0 +1,9 @@
+# Reset all per-module settings. Preserve LOCAL_PATH (Plan9.mk convention).
+LOCAL_MODULE :=
+LOCAL_SRC_FILES :=
+LOCAL_SRC_DIR :=
+LOCAL_OBJ_DIR :=
+LOCAL_CFLAGS :=
+LOCAL_CXXFLAGS :=
+LOCAL_ASFLAGS :=
+LOCAL_BUILT_OBJECTS :=

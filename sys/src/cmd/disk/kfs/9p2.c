@@ -95,7 +95,7 @@ fsauth(Chan *chan, Fcall *f, Fcall *r)
 
 out:
 	if(file != nil){
-		qunlock(file);
+		qunlock(&file->qlock);
 		if(err != 0)
 			freefp(file);
 	}
@@ -309,9 +309,9 @@ out:
 	if(p != nil)
 		putbuf(p);
 	if(afile != nil)
-		qunlock(afile);
+		qunlock(&afile->qlock);
 	if(file != nil){
-		qunlock(file);
+		qunlock(&file->qlock);
 		if(error)
 			freefp(file);
 	}
@@ -502,7 +502,7 @@ fswalk(Chan* chan, Fcall* f, Fcall* r)
 	if((file = filep(chan, f->fid, 0)) == nil)
 		return Efid;
 	if(file->open != 0){
-		qunlock(file);
+		qunlock(&file->qlock);
 		return Emode;
 	}
 
@@ -520,7 +520,7 @@ fswalk(Chan* chan, Fcall* f, Fcall* r)
 	r->nwqid = 0;
 	if(f->newfid != f->fid){
 		if((nfile = filep(chan, f->newfid, 1)) == nil){
-			qunlock(file);
+			qunlock(&file->qlock);
 			return Efidinuse;
 		}
 	}
@@ -531,7 +531,7 @@ fswalk(Chan* chan, Fcall* f, Fcall* r)
 		nfile->fid = ~0;
 	}
 	else{
-		qunlock(file);
+		qunlock(&file->qlock);
 		return 0;
 	}
 	clone(nfile, file);
@@ -555,11 +555,11 @@ fswalk(Chan* chan, Fcall* f, Fcall* r)
 		 */
 		if(error){
 			freewp(nfile->wpath);
-			qunlock(nfile);
+			qunlock(&nfile->qlock);
 			freefp(nfile);
 		}
 		else
-			qunlock(nfile);
+			qunlock(&nfile->qlock);
 	}
 	else if(r->nwqid < f->nwname){
 		/*
@@ -570,7 +570,7 @@ fswalk(Chan* chan, Fcall* f, Fcall* r)
 		 */
 		freewp(nfile->wpath);
 		if(nfile != &tfile){
-			qunlock(nfile);
+			qunlock(&nfile->qlock);
 			freefp(nfile);
 		}
 		if(r->nwqid != 0)
@@ -592,9 +592,9 @@ fswalk(Chan* chan, Fcall* f, Fcall* r)
 			file->slot = nfile->slot;
 		}
 		else
-			qunlock(nfile);
+			qunlock(&nfile->qlock);
 	}
-	qunlock(file);
+	qunlock(&file->qlock);
 
 	return error;
 }
@@ -740,7 +740,7 @@ out:
 	if(p != nil)
 		putbuf(p);
 	if(file != nil)
-		qunlock(file);
+		qunlock(&file->qlock);
 
 	r->iounit = chan->msize-IOHDRSZ;
 
@@ -998,7 +998,7 @@ out:
 	if(p != nil)
 		putbuf(p);
 	if(file != nil)
-		qunlock(file);
+		qunlock(&file->qlock);
 
 	r->iounit = chan->msize-IOHDRSZ;
 
@@ -1193,7 +1193,7 @@ out:
 	if(p != nil)
 		putbuf(p);
 	if(file != nil)
-		qunlock(file);
+		qunlock(&file->qlock);
 	r->count = nread;
 	r->data = (char*)data;
 
@@ -1305,7 +1305,7 @@ out:
 	if(p != nil)
 		putbuf(p);
 	if(file != nil)
-		qunlock(file);
+		qunlock(&file->qlock);
 	r->count = nwrite;
 
 	return error;
@@ -1328,7 +1328,7 @@ _clunk(File* file, int remove, int wok)
 	file->open = 0;
 	freewp(file->wpath);
 	freefp(file);
-	qunlock(file);
+	qunlock(&file->qlock);
 
 	return error;
 }
@@ -1394,7 +1394,7 @@ out:
 	if(p != nil)
 		putbuf(p);
 	if(file != nil)
-		qunlock(file);
+		qunlock(&file->qlock);
 
 	return error;
 }
@@ -1676,7 +1676,7 @@ out:
 	if(p1 != nil)
 		putbuf(p1);
 	if(file != nil)
-		qunlock(file);
+		qunlock(&file->qlock);
 
 	return error;
 }

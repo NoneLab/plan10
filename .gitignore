@@ -1,3 +1,4 @@
+ide-test.raw
 *.patch
 out/
-compile_commads.json
+compile_commands.json

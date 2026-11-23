@@ -30,10 +30,9 @@ settime(int islocal, int afd, char *rp)
 				timeset = 1;
 			}
 			close(f);
-		}else do{
-			strcpy(timebuf, "yymmddhhmm[ss]");
-			outin("\ndate/time ", timebuf, sizeof(timebuf));
-		}while((timeset=lusertime(timebuf)) <= 0);
+		}else {
+			print("\nboot: no RTC; deferring wall-clock setup\n");
+		};
 	}
 	if(timeset == 0){
 		/*

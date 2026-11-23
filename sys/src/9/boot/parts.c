@@ -11,7 +11,11 @@
 #include "../boot/boot.h"
 
 typedef struct Fs Fs;
+#ifdef P9_NATIVE_BOOT64
+#include "../../boot/pc/dosfs.h"
+#else
 #include "/sys/src/boot/pc/dosfs.h"
+#endif
 
 #define	GSHORT(p)	(((p)[1]<<8)|(p)[0])
 #define	GLONG(p)	((GSHORT((p)+2)<<16)|GSHORT(p))
@@ -514,13 +518,19 @@ rdgeom(SDunit *unit)
 	char *flds[5];
 	Biobuf bb;
 	Biobuf *bp;
+	Biobufhdr *bh;
 	static char geom[] = "geometry ";
 
 	bp = &bb;
+#ifdef P9_NATIVE_BOOT64
+	bh = &bp->_p9_headers;
+#else
+	bh = (Biobufhdr*)bp;
+#endif
 	seek(unit->ctl, 0, 0);
 	Binit(bp, unit->ctl, OREAD);
-	while((line = Brdline(bp, '\n')) != nil){
-		line[Blinelen(bp) - 1] = '\0';
+	while((line = Brdline(bh, '\n')) != nil){
+		line[Blinelen(bh) - 1] = '\0';
 		if (strncmp(line, geom, sizeof geom - 1) == 0)
 			break;
 	}
@@ -528,7 +538,7 @@ rdgeom(SDunit *unit)
 		unit->sectors = atoll(flds[1]);
 		unit->secsize = atoll(flds[2]);
 	}
-	Bterm(bp);
+	Bterm(bh);
 	seek(unit->ctl, 0, 0);
 }
 

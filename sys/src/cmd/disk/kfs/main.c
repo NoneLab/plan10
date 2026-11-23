@@ -491,9 +491,9 @@ fsinit(int ream, int newbufsize)
 	 */
 	BUFSIZE = RBUFSIZE - sizeof(Tag);
 	DIRPERBUF = BUFSIZE / sizeof(Dentry);
-	INDPERBUF = BUFSIZE / sizeof(long);
+	INDPERBUF = BUFSIZE / sizeof(int);
 	INDPERBUF2 = INDPERBUF * INDPERBUF;
-	FEPERBUF = (BUFSIZE - sizeof(Super1) - sizeof(long)) / sizeof(long);
+	FEPERBUF = (BUFSIZE - sizeof(Super1) - sizeof(int)) / sizeof(int);
 	return ream;
 }
 
@@ -519,15 +519,15 @@ iobufinit(void)
 	hiob = ialloc(nhiob * sizeof(Hiob));
 	hp = hiob;
 	for(i=0; i<nhiob; i++) {
-		lock(hp);
-		unlock(hp);
+		lock(&hp->lock);
+		unlock(&hp->lock);
 		hp++;
 	}
 	p = ialloc(niob * sizeof(Iobuf));
 	hp = hiob;
 	for(i=0; i<niob; i++) {
-		qlock(p);
-		qunlock(p);
+		qlock(&p->qlock);
+		qunlock(&p->qlock);
 		if(hp == hiob)
 			hp = hiob + nhiob;
 		hp--;

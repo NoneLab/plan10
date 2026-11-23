@@ -58,8 +58,15 @@ vsmprint(char *fmt, va_list args)
 
 	if(fmtstrinit(&f) < 0)
 		return nil;
+#ifdef P9_NATIVE_BOOT64
+	va_copy(f.args, args);
+#else
 	f.args = args;
+#endif
 	n = dofmt(&f, fmt);
+#ifdef P9_NATIVE_BOOT64
+	va_end(f.args);
+#endif
 	if(f.start == nil)		/* realloc failed? */
 		return nil;
 	if(n < 0){

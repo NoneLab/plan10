@@ -33,74 +33,78 @@ typedef struct	AuthRpc	AuthRpc;
  * DONT TOUCH -- data structures stored on disk
  */
 /* DONT TOUCH, this is the disk structure */
-struct	Qid9p1
+/*
+ * KFS disk format predates AMD64: all historical "long" disk fields are
+ * 32-bit little-endian values.  Keep this layout independent of the host's
+ * LP64 ABI.  Runtime counters and seek offsets remain native long/vlong.
+ */
+struct Qid9p1
 {
-	long	path;
-	long	version;
+	u32int path;
+	u32int version;
 };
 
-/* DONT TOUCH, this is the disk structure */
-struct	Dentry
+struct Dentry
 {
-	char	name[NAMELEN];
-	short	uid;
-	short	gid;
-	ushort	mode;
-		#define	DALLOC	0x8000
-		#define	DDIR	0x4000
-		#define	DAPND	0x2000
-		#define	DLOCK	0x1000
-		#define	DREAD	0x4
-		#define	DWRITE	0x2
-		#define	DEXEC	0x1
-	Qid9p1	qid;
-	long	size;
-	long	dblock[NDBLOCK];
-	long	iblock;
-	long	diblock;
-	long	atime;
-	long	mtime;
+	char name[NAMELEN];
+	short uid;
+	short gid;
+	ushort mode;
+		#define DALLOC 0x8000
+		#define DDIR   0x4000
+		#define DAPND  0x2000
+		#define DLOCK  0x1000
+		#define DREAD  0x4
+		#define DWRITE 0x2
+		#define DEXEC  0x1
+	Qid9p1 qid;
+	int size;
+	int dblock[NDBLOCK];
+	int iblock;
+	int diblock;
+	int atime;
+	int mtime;
 };
 
-/* DONT TOUCH, this is the disk structure */
-struct	Tag
+struct Tag
 {
-	short	pad;
-	short	tag;
-	long	path;
+	short pad;
+	short tag;
+	int path;
 };
 
-/* DONT TOUCH, this is the disk structure */
-struct	Super1
+struct Super1
 {
-	long	fstart;
-	long	fsize;
-	long	tfree;
-	long	qidgen;		/* generator for unique ids */
-
-	long	fsok;		/* file system ok */
-
-	/*
-	 * garbage for WWC device
-	 */
-	long	roraddr;	/* dump root addr */
-	long	last;		/* last super block addr */
-	long	next;		/* next super block addr */
+	int fstart;
+	int fsize;
+	int tfree;
+	int qidgen;
+	int fsok;
+	int roraddr;
+	int last;
+	int next;
 };
 
-/* DONT TOUCH, this is the disk structure */
-struct	Fbuf
+struct Fbuf
 {
-	long	nfree;
-	long	free[1];		/* changes based on BUFSIZE */
+	int nfree;
+	int free[1];
 };
 
-/* DONT TOUCH, this is the disk structure */
-struct	Superb
+struct Superb
 {
-	Super1;
-	Fbuf	fbuf;
+	Super1 super;
+	Fbuf fbuf;
 };
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(Qid9p1) == 8, "KFS Qid9p1 disk ABI");
+_Static_assert(sizeof(Dentry) == 88, "KFS Dentry disk ABI");
+_Static_assert(sizeof(Tag) == 8, "KFS Tag disk ABI");
+_Static_assert(sizeof(Super1) == 32, "KFS Super1 disk ABI");
+_Static_assert(__builtin_offsetof(Superb, fbuf) == 32,
+               "KFS free-list offset must match original disk format");
+#endif
 
 struct	Device
 {
@@ -139,7 +143,7 @@ struct	Tlock
 
 struct	File
 {
-	QLock;
+	QLock qlock;
 	Qid	qid;
 	Wpath*	wpath;
 	Chan*	cp;		/* null means a free slot */
@@ -178,12 +182,12 @@ struct	Filsys
 struct	Hiob
 {
 	Iobuf*	link;
-	Lock;
+	Lock lock;
 };
 
 struct	Iobuf
 {
-	QLock;
+	QLock qlock;
 	Device	dev;
 	Iobuf	*next;		/* for hash */
 	Iobuf	*fore;		/* for lru */

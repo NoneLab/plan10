@@ -85,6 +85,21 @@ p9_amd64_trap_entry:
     call p9_amd64_trap
     movq %r12, %rsp
 
+    testb $3, 208(%rsp)
+    jz 1f
+
+    movq 168(%rsp), %rax
+    movq %rax, 224(%rsp)
+    movq 176(%rsp), %rax
+    movq %rax, 232(%rsp)
+1:
+    movq 144(%rsp), %rax
+    movq %rax, 200(%rsp)
+    movq 152(%rsp), %rax
+    movq %rax, 208(%rsp)
+    movq 160(%rsp), %rax
+    movq %rax, 216(%rsp)
+
     /* Restore all registers and discard software type/error. */
     movq 8(%rsp), %rbx
     movq 16(%rsp), %rcx

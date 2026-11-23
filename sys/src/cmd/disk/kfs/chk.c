@@ -102,11 +102,11 @@ check(Filsys *fs, long flag)
 	sb = (Superb*)p->iobuf;
 	fstart = 1;
 
-	fsize = sb->fsize;
+	fsize = sb->super.fsize;
 	sizabits = (fsize-fstart + 7)/8;
 	abits = zalloc(sizabits);
 
-	nqid = sb->qidgen+100;		/* not as much of a botch */
+	nqid = sb->super.qidgen+100;		/* not as much of a botch */
 	if(nqid > 1024*1024*8)
 		nqid = 1024*1024*8;
 	if(nqid < 64*1024)
@@ -135,9 +135,9 @@ check(Filsys *fs, long flag)
 	if(amark(sbaddr))
 		{}
 	if(cwflag) {
-		if(amark(sb->roraddr))
+		if(amark(sb->super.roraddr))
 			{}
-		if(amark(sb->next))
+		if(amark(sb->super.next))
 			{}
 	}
 
@@ -160,13 +160,13 @@ check(Filsys *fs, long flag)
 
 	if(flags & Cfree) {
 		mkfreelist(sb);
-		sb->qidgen = maxq;
+		sb->super.qidgen = maxq;
 		settag(p, Tsuper, QPNONE);
 	}
 
-	if(sb->qidgen < maxq)
+	if(sb->super.qidgen < maxq)
 		cprint("qid generator low path=%ld maxq=%ld\n",
-			sb->qidgen, maxq);
+			sb->super.qidgen, maxq);
 	if(!(flags & Cfree))
 		ckfreelist(sb);
 	if(mod) {
@@ -178,10 +178,10 @@ check(Filsys *fs, long flag)
 		cprint("%8ld files\n", nfiles);
 		cprint("%8ld blocks in the file system\n", fsize-fstart);
 		cprint("%8ld used blocks\n", nused);
-		cprint("%8ld free blocks\n", sb->tfree);
+		cprint("%8ld free blocks\n", sb->super.tfree);
 	}
 	if(!(flags & Cfree)){
-		if(nfree != sb->tfree)
+		if(nfree != sb->super.tfree)
 			cprint("%8ld free blocks found\n", nfree);
 		if(nfdup)
 			cprint("%8ld blocks duplicated in the free list\n", nfdup);
@@ -259,12 +259,12 @@ checkindir(long a, Dentry *d, long qpath)
 	if(!p)
 		return dmod;
 	for(i=0; i<INDPERBUF; i++) {
-		a = ((long*)p->iobuf)[i];
+		a = ((int*)p->iobuf)[i];
 		if(!a)
 			continue;
 		if(amark(a)) {
 			if(flags & Cbad) {
-				((long*)p->iobuf)[i] = 0;
+				((int*)p->iobuf)[i] = 0;
 				p->flags |= Bmod;
 			}
 			continue;
@@ -367,12 +367,12 @@ fsck(Dentry *d)
 	dmod += touch(a);
 	if(p = xtag(a, Tind2, qpath)){
 		for(i=0; i<INDPERBUF; i++){
-			a = ((long*)p->iobuf)[i];
+			a = ((int*)p->iobuf)[i];
 			if(!a)
 				continue;
 			if(amark(a)) {
 				if(flags & Cbad) {
-					((long*)p->iobuf)[i] = 0;
+					((int*)p->iobuf)[i] = 0;
 					p->flags |= Bmod;
 				}
 				continue;
@@ -450,7 +450,7 @@ mkfreelist(Superb *sb)
 	strcpy(name, "free list");
 	memset(&sb->fbuf, 0, sizeof(sb->fbuf));
 	sb->fbuf.nfree = 1;
-	sb->tfree = 0;
+	sb->super.tfree = 0;
 	for(a=fsize-fstart-1; a >= 0; a--) {
 		i = a/8;
 		if(i < 0 || i >= sizabits)

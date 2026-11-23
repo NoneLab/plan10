@@ -44,7 +44,7 @@ loop:
 	cp->flist = f->next;
 	unlock(&cp->flock);
 
-	qlock(f);
+	qlock(&f->qlock);
 	if(t = f->tlock) {
 		t->time = 0;
 		f->tlock = 0;
@@ -54,7 +54,7 @@ loop:
 	freewp(f->wpath);
 	f->open = 0;
 	f->cp = 0;
-	qunlock(f);
+	qunlock(&f->qlock);
 
 	goto loop;
 }
@@ -95,9 +95,9 @@ else print("cannot find %p.%d (list=%p)\n", cp, fid, cp->flist);
 
 out:
 	unlock(&cp->flock);
-	qlock(f);
+	qlock(&f->qlock);
 	if(f->fid != fid) {
-		qunlock(f);
+		qunlock(&f->qlock);
 		goto loop;
 	}
 	return f;
@@ -154,8 +154,8 @@ retry:
 	memset(f, 0, Finc*sizeof(*f));
 	lock(&suballoc.flock);
 	for(e = f+Finc; f < e; f++){
-		qlock(f);
-		qunlock(f);
+		qlock(&f->qlock);
+		qunlock(&f->qlock);
 		f->list = suballoc.ffree;
 		suballoc.ffree = f;
 	}
@@ -353,8 +353,8 @@ newqid(Device dev)
 	if(!p || checktag(p, Tsuper, QPSUPER))
 		panic("newqid: super block");
 	sb = (Superb*)p->iobuf;
-	sb->qidgen++;
-	qid.path = sb->qidgen;
+	sb->super.qidgen++;
+	qid.path = sb->super.qidgen;
 	qid.vers = 0;
 	qid.type = 0;
 	putbuf(p);
@@ -401,7 +401,7 @@ bfree(Device dev, long addr, int d)
 		p = getbuf(dev, addr, Bread);
 		if(p) {
 			for(i=INDPERBUF-1; i>=0; i--) {
-				a = ((long*)p->iobuf)[i];
+				a = ((int*)p->iobuf)[i];
 				bfree(dev, a, d);
 			}
 			putbuf(p);
@@ -443,13 +443,13 @@ balloc(Device dev, int tag, long qid)
 
 loop:
 	n = --sb->fbuf.nfree;
-	sb->tfree--;
+	sb->super.tfree--;
 	if(n < 0 || n >= FEPERBUF)
 		panic("balloc: bad freelist");
 	a = sb->fbuf.free[n];
 	if(n <= 0) {
 		if(a == 0) {
-			sb->tfree = 0;
+			sb->super.tfree = 0;
 			sb->fbuf.nfree = 1;
 			if(devgrow(dev, sb))
 				goto loop;
@@ -463,7 +463,7 @@ loop:
 			putbuf(p);
 			return 0;
 		}
-		memmove(&sb->fbuf, bp->iobuf, (FEPERBUF+1)*sizeof(long));
+		memmove(&sb->fbuf, bp->iobuf, (FEPERBUF+1)*sizeof(int));
 		putbuf(bp);
 	}
 	bp = getbuf(dev, a, Bmod);
@@ -482,7 +482,7 @@ addfree(Device dev, long addr, Superb *sb)
 	int n;
 	Iobuf *p;
 
-	if(addr >= sb->fsize){
+	if(addr >= sb->super.fsize){
 		print("addfree: bad addr %lux\n", addr);
 		return;
 	}
@@ -493,16 +493,16 @@ addfree(Device dev, long addr, Superb *sb)
 		p = getbuf(dev, addr, Bmod);
 		if(p == 0)
 			panic("addfree: getbuf");
-		memmove(p->iobuf, &sb->fbuf, (FEPERBUF+1)*sizeof(long));
+		memmove(p->iobuf, &sb->fbuf, (FEPERBUF+1)*sizeof(int));
 		settag(p, Tfree, QPNONE);
 		putbuf(p);
 		n = 0;
 	}
 	sb->fbuf.free[n++] = addr;
 	sb->fbuf.nfree = n;
-	sb->tfree++;
-	if(addr >= sb->fsize)
-		sb->fsize = addr+1;
+	sb->super.tfree++;
+	if(addr >= sb->super.fsize)
+		sb->super.fsize = addr+1;
 }
 
 int
@@ -602,8 +602,8 @@ superok(Device dev, long addr, int set)
 
 	p = getbuf(dev, addr, Bread|Bmod|Bimm);
 	s = (Superb*)p->iobuf;
-	ok = s->fsok;
-	s->fsok = set;
+	ok = s->super.fsok;
+	s->super.fsok = set;
 	putbuf(p);
 	return ok;
 }
@@ -620,11 +620,11 @@ superream(Device dev, long addr)
 	settag(p, Tsuper, QPSUPER);
 
 	s = (Superb*)p->iobuf;
-	s->fstart = 1;
-	s->fsize = devsize(dev);
+	s->super.fstart = 1;
+	s->super.fsize = devsize(dev);
 	s->fbuf.nfree = 1;
-	s->qidgen = 10;
-	for(i=s->fsize-1; i>=addr+2; i--)
+	s->super.qidgen = 10;
+	for(i=s->super.fsize-1; i>=addr+2; i--)
 		addfree(dev, i, s);
 	putbuf(p);
 }
@@ -682,8 +682,8 @@ qidpathgen(Device *dev)
 	if(!p || checktag(p, Tsuper, QPSUPER))
 		panic("newqid: super block");
 	sb = (Superb*)p->iobuf;
-	sb->qidgen++;
-	path = sb->qidgen;
+	sb->super.qidgen++;
+	path = sb->super.qidgen;
 	putbuf(p);
 	return path;
 }
