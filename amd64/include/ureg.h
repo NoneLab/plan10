@@ -1,3 +1,8 @@
+#ifndef __UREG_H
+#define __UREG_H
+
+#include "u.h"
+
 struct Ureg {
 	u64int	ax;
 	u64int	bx;
@@ -31,3 +36,5 @@ struct Ureg {
 	u64int	sp;				/* sp */
 	u64int	ss;				/* old stack segment */
 };
+
+#endif

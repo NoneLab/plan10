@@ -189,6 +189,7 @@ ulong	upaalloc(int, int);
 void	upafree(ulong, int);
 void	upareserve(ulong, int);
 #define	userureg(ur) (((ur)->cs & 0xFFFF) == UESEL)
+void    noted(Ureg*, ulong);
 void	validalign(uintptr, unsigned);
 void	vectortable(void);
 void*	vmap(ulong, int);

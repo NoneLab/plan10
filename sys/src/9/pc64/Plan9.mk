@@ -77,6 +77,41 @@ else ifneq ($(KFS_EMBED),0)
 $(error KFS_EMBED must be 0 or 1)
 endif
 
+INIT_IMAGE ?= $(BUILD_DIR)/init/init.6.out
+INIT_EMBED ?= 0
+ifeq ($(INIT_EMBED),1)
+
+BOOT_IMAGE_DEFINES += -DP9_HAVE_INIT_IMAGE
+BOOT64_USER_CFLAGS += -DP9_BOOT_INIT_EMBED
+BOOT_IMAGE_HEADERS += $(BUILD_DIR)/generated/init6_amd64.h
+$(BUILD_DIR)/generated/init6_amd64.h: $(INIT_IMAGE) tools/pc64/genboot6.py
+	@mkdir -p "$(dir $@)"
+	$(PYTHON) tools/pc64/genboot6.py --symbol p9_init6_image "$(INIT_IMAGE)" "$@"
+
+else ifneq ($(INIT_EMBED), 0)
+$(error INIT_EMBED must be 0 or 1)
+endif
+
+RC_IMAGE ?= $(BUILD_DIR)/rc/rc.6.out
+RC_EMBED ?= 0
+ifeq ($(RC_EMBED),1)
+
+BOOT64_USER_CFLAGS += -DP9_BOOT_RC_EMBED
+BOOT_IMAGE_DEFINES += -DP9_HAVE_RC_IMAGE -DP9_HAVE_RCMAIN_DATA
+BOOT_IMAGE_HEADERS += $(BUILD_DIR)/generated/rc6_amd64.h $(BUILD_DIR)/generated/rcmain_data.h
+
+$(BUILD_DIR)/generated/rc6_amd64.h: $(RC_IMAGE) tools/pc64/genboot6.py
+	@mkdir -p "$(dir $@)"
+	$(PYTHON) tools/pc64/genboot6.py --symbol p9_rc6_image "$(RC_IMAGE)" "$@"
+
+$(BUILD_DIR)/generated/rcmain_data.h: rc/lib/rcmain tools/pc64/genbootdata.py
+	@mkdir -p "$(dir $@)"
+	$(PYTHON) tools/pc64/genbootdata.py --symbol p9_rcmain_data "$<" "$@"
+
+else ifneq ($(RC_EMBED),0)
+$(error RC_EMBED must be 0 or 1)
+endif
+
 BOOT_IMAGE_OBJ := $(BUILD_DIR)/obj/pc64/bootimage-embedded.o
 $(BOOT_IMAGE_OBJ): sys/src/9/pc64/bootimage.c $(BOOT_IMAGE_HEADERS)
 	@mkdir -p "$(dir $@)"
@@ -100,7 +135,7 @@ LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/pc64
 LOCAL_SRC_FILES := \
     dat.c config.c main.c console.c \
     clock.c portglobals.c bootmem.c mmu.c \
-    mmuproc.c segments.c trap64.c syscall64.c \
+    mmuproc.c segments.c trap64.c syscall64.c note64.c \
     userentry.c userinit.c exec64.c traputil.c \
     procmach.c power.c errstr.c kentry.c \
     atomics.c sdide.c
@@ -196,6 +231,10 @@ include sys/src/9/boot/Plan9.mk
 # U3.3: original user-level KFS; do not silently substitute a fake server.
 include sys/src/cmd/disk/kfs/Plan9.mk
 
+include sys/src/cmd/Plan9.mk
+include sys/src/cmd/rc/Plan9.mk
+include tools/kfs/Plan9.mk
+
 # pc64 kernel ELF and physical Multiboot image
 # ---------------------------------------------------------------------------
 # Genuine Plan 9 kernel image / QEMU
@@ -275,7 +314,7 @@ QEMU_DISK_IMAGE ?=
 ifneq ($(strip $(QEMU_DISK_IMAGE)),)
 QEMU_DISK_ARGS := -drive "file=$(QEMU_DISK_IMAGE),format=raw,if=ide,index=0,media=disk"
 else
-QEMU_DISK_ARGS :=
+QEMU_DISK_ARGS := -drive "file=$(BUILD_DIR)/images/kfs-root.raw,format=raw,if=ide,index=0,media=disk"
 endif
 
 qemu-preflight:

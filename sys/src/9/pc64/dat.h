@@ -5,6 +5,11 @@
  * The PCArch/Mach/PMMU interfaces still contain 386 dependencies and need
  * real long-mode implementations before linking the original Plan 9 kernel.
  */
+#ifndef __DAT_H
+#define __DAT_H
+
+#include "u.h"
+
 typedef struct BIOS32si	BIOS32si;
 typedef struct BIOS32ci	BIOS32ci;
 typedef struct Conf	Conf;
@@ -360,3 +365,5 @@ typedef struct BIOS32ci {		/* BIOS32 Calling Interface */
 	u32int	esi;
 	u32int	edi;
 } BIOS32ci;
+
+#endif  // __DAT_H

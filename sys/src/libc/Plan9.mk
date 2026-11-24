@@ -125,3 +125,21 @@ kernel-fmt: $(KERNEL_FMT_OBJS)
 .PHONY: boot64-libc
 boot64-libc: $(BOOT64_PORT_OBJS) $(BOOT64_9SYS_OBJS) $(BOOT64_FMT_OBJS) $(BOOT64_RUNTIME_OBJS)
 	@echo "Original Plan 9 boot libc objects: $(words $^) compiled"
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := init-libc-port
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/init/libc-port
+LOCAL_SRC_DIR := sys/src/libc/port
+LOCAL_SRC_FILES := atnotify.c strpbrk.c netmkaddr.c
+LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
+include $(BUILD_OBJECTS)
+INIT_PORT_EXTRAS := $(LOCAL_BUILT_OBJECTS)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := init-libc-9sys
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/init/libc-9sys
+LOCAL_SRC_DIR := sys/src/libc/9sys
+LOCAL_SRC_FILES := postnote.c getwd.c
+LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
+include $(BUILD_OBJECTS)
+INIT_9SYS_EXTRAS := $(LOCAL_BUILT_OBJECTS)

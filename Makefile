@@ -20,7 +20,7 @@ include sys/src/9/pc64/Plan9.mk
 
 .PHONY: all check check-tools help clean
 
-all: kernel
+all: kernel kfs-bootfs-image
 
 help:
 	@printf '%s\n' \

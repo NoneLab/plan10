@@ -1,3 +1,6 @@
+#ifndef U_H
+#define U_H
+
 #define nil		((void*)0)
 typedef	unsigned short	ushort;
 typedef	unsigned char	uchar;
@@ -91,3 +94,5 @@ typedef	char*	va_list;
 		((list += sizeof(mode)), (mode*)list)[-1])
 
 #endif
+
+#endif  // U_H

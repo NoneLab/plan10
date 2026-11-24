@@ -2,6 +2,14 @@
 #include <libc.h>
 #include "String.h"
 
+#ifdef P9_NATIVE_BOOT64
+#define SLOCK(s) lock(&(s)->lock)
+#define SUNLOCK(s) unlock(&(s)->lock)
+#else
+#define SLOCK(s) lock(s)
+#define SUNLOCK(s) unlock(s)
+#endif
+
 #define STRLEN 128
 
 extern void
@@ -9,12 +17,12 @@ s_free(String *sp)
 {
 	if (sp == nil)
 		return;
-	lock(sp);
+	SLOCK(sp);
 	if(--(sp->ref) != 0){
-		unlock(sp);
+		SUNLOCK(sp);
 		return;
 	}
-	unlock(sp);
+	SUNLOCK(sp);
 
 	if(sp->fixed == 0 && sp->base != nil)
 		free(sp->base);
@@ -25,9 +33,9 @@ s_free(String *sp)
 extern String *
 s_incref(String *sp)
 {
-	lock(sp);
+	SLOCK(sp);
 	sp->ref++;
-	unlock(sp);
+	SUNLOCK(sp);
 
 	return sp;
 }

@@ -193,6 +193,14 @@ nsinit(int fd, char **rspp)
 				fatal("second bind /");
 		}
 	}
+
+#ifdef P9_NATIVE_BOOT64
+	{
+		char diskbin[128];
+
+		snprint(diskbin, sizeof(diskbin), "%s/bin", rp);
+	}
+#endif
 	setenv("rootdir", rp);
 	*rspp = rsp;
 	return afd;
@@ -207,8 +215,12 @@ execinit(void)
 	/* exec init */
 	cmd = getenv("init");
 	if(cmd == nil){
-		sprint(cmdbuf, "/%s/init -%s%s", cputype,
-			cpuflag ? "c" : "t", mflag ? "m" : "");
+#if defined(P9_NATIVE_BOOT64) && defined(P9_BOOT_INIT_EMBED)
+	sprint(cmdbuf, "/boot/init -%s%s", cpuflag ? "c" : "t", mflag ? "m" : "");
+#else
+	sprint(cmdbuf, "/%s/init -%s%s", cputype,
+		cpuflag ? "c" : "t", mflag ? "m" : "");
+#endif
 		cmd = cmdbuf;
 	}
 	iargc = tokenize(cmd, iargv, nelem(iargv)-1);

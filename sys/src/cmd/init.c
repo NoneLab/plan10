@@ -3,6 +3,47 @@
 #include <auth.h>
 #include <authsrv.h>
 
+/* U3.5: /boot/boot mounts KFS under /root, but init's newns() may
+ * reconfigure the process namespace.  Perform disk /bin binding in the
+ * final namespace, and log both source and destination lookup results.
+ * No effect on the U3.4 embedded-rc build or the original non-pc64 port.
+ */
+#if defined(P9_NATIVE_BOOT64) && !defined(P9_BOOT_RC_EMBED)
+static void
+pc64diskbin(void)
+{
+    int fd;
+
+    fd = open("/root/bin/rc", OREAD);
+    if(fd < 0){
+        print("init: KFS source /root/bin/rc unavailable: %r\n");
+        print("init: check mkbootfs.kfs image and KFS /root mount\n");
+        return;
+    }
+    close(fd);
+    print("init: KFS /root/bin/rc accessible\n");
+
+    if(bind("/root/bin", "/bin", MREPL) < 0)
+        print("init: failed to bind KFS /root/bin to /bin: %r\n");
+    else
+        print("init: KFS /bin mounted from /root/bin\n");
+
+    /* rcmain is not embedded either; give rc a disk-backed /rc tree. */
+    if(bind("/root/rc", "/rc", MREPL) < 0)
+        print("init: failed to bind KFS /root/rc to /rc: %r\n");
+    else
+        print("init: KFS /rc mounted from /root/rc\n");
+
+    fd = open("/bin/rc", OREAD);
+    if(fd < 0)
+        print("init: KFS /bin/rc still inaccessible: %r\n");
+    else{
+        close(fd);
+        print("init: KFS /bin/rc lookup PASS\n");
+    }
+}
+#endif
+
 char*	readenv(char*);
 void	setenv(char*, char*);
 void	cpenv(char*, char*);
@@ -11,6 +52,12 @@ void	fexec(void(*)(void));
 void	rcexec(void);
 void	cpustart(void);
 void	pass(int);
+
+#if defined(P9_NATIVE_BOOT64) && defined(P9_BOOT_RC_EMBED)
+#define RC_EXEC_PATH "/boot/rc"
+#else
+#define RC_EXEC_PATH "/bin/rc"
+#endif
 
 char	*service;
 char	*cmd;
@@ -61,13 +108,16 @@ main(int argc, char *argv[])
 	systemname = readenv("#c/sysname");
 
 	newns(user, 0);
+#if defined(P9_NATIVE_BOOT64) && !defined(P9_BOOT_RC_EMBED)
+	pc64diskbin();
+#endif
 	iscpu = strcmp(service, "cpu")==0;
 
 	if(iscpu && manual == 0)
 		fexec(cpustart);
 
 	for(;;){
-		print("\ninit: starting /bin/rc\n");
+		print("\ninit: starting %s\n", RC_EXEC_PATH);
 		fexec(rcexec);
 		manual = 1;
 		cmd = 0;
@@ -170,20 +220,27 @@ fexec(void (*execfn)(void))
 void
 rcexec(void)
 {
-	if(cmd)
-		execl("/bin/rc", "rc", "-c", cmd, nil);
-	else if(manual || iscpu)
-		execl("/bin/rc", "rc", nil);
-	else if(strcmp(service, "terminal") == 0)
-		execl("/bin/rc", "rc", "-c", ". /rc/bin/termrc; home=/usr/$user; cd; . lib/profile", nil);
+#ifdef P9_NATIVE_BOOT64
+	if (cmd)
+		execl(RC_EXEC_PATH, "rc", "-c", cmd, nil);
 	else
-		execl("/bin/rc", "rc", nil);
+		execl(RC_EXEC_PATH, "rc", "-i", nil);
+#else
+	if(cmd)
+		execl(RC_EXEC_PATH, "rc", "-c", cmd, nil);
+	else if(manual || iscpu)
+		execl(RC_EXEC_PATH, "rc", nil);
+	else if(strcmp(service, "terminal") == 0)
+		execl(RC_EXEC_PATH, "rc", "-c", ". /rc/bin/termrc; home=/usr/$user; cd; . lib/profile", nil);
+	else
+		execl(RC_EXEC_PATH, "rc", nil);
+#endif
 }
 
 void
 cpustart(void)
 {
-	execl("/bin/rc", "rc", "-c", "/rc/bin/cpurc", nil);
+	execl(RC_EXEC_PATH, "rc", "-c", "/rc/bin/cpurc", nil);
 }
 
 char*

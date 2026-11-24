@@ -405,6 +405,30 @@ echoserialoq(char *buf, int n)
 }
 
 static void
+echouart(char* buf, int n)
+{
+	char *p, *start, *end;
+
+	start = buf;
+	end = buf + n;
+
+	for (p = buf; p < end; p++)
+	{
+		if (*p != 0x15)
+			continue;
+
+		if (p > start)
+			uartputs(start, p - start);
+		
+		uartputs("^U\n", 3);
+		start = p + 1;
+	}
+
+	if (start < end)
+		uartputs(start, end - start);
+}
+
+static void
 echo(char *buf, int n)
 {
 	static int ctrlt, pid;
@@ -489,6 +513,8 @@ echo(char *buf, int n)
 		echoscreen(buf, n);
 	if(serialoq)
 		echoserialoq(buf, n);
+	else if (screenputs == nil)
+		echouart(buf, n);
 }
 
 /*

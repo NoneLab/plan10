@@ -31,10 +31,7 @@ p9_amd64_syscall(Ureg* ur)
     s = spllo();
     if (!waserror())
     {
-        if (scallnr >= (ulong)nsyscall)
-            error(Ebadarg);
-
-        if (scallnr == NOTED || scallnr == NOTIFY)
+        if (scallnr >= (ulong)nsyscall || systab[scallnr] == nil)
             error(Ebadarg);
 
         if (sp < UTZERO || sp > USTKTOP - sizeof(Sargs) - BY2WD)
@@ -61,8 +58,11 @@ p9_amd64_syscall(Ureg* ur)
     up->insyscall = 0;
     splx(s);
 
-    if (up->procctl || up->nnote)
-        panic("pc64: syscall requires unprorted user note delivery");
+    if (scallnr == NOTED)
+        noted(ur, up->s.args[0]);
+
+    if (scallnr != RFORK && (up->procctl || up->nnote))
+        notify(ur);
 
     if (up->delaysched)
         sched();

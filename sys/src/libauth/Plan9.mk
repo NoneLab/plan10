@@ -21,3 +21,11 @@ BOOT64_AUTH_OBJS := $(LOCAL_BUILT_OBJECTS)
 .PHONY: boot64-libauth
 boot64-libauth: $(BOOT64_AUTH_OBJS)
 	@echo "Original Plan 9 libauth boot objects: $(words $^) compiled"
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := init-libauth
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/init/auth
+LOCAL_SRC_FILES := newns.c amount_getkey.c
+LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
+include $(BUILD_OBJECTS)
+INIT_AUTH_OBJS := $(LOCAL_BUILT_OBJECTS)

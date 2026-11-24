@@ -41,7 +41,7 @@ def main():
     ap.add_argument('image', type=pathlib.Path)
     ap.add_argument('header', type=pathlib.Path, nargs='?')
     ap.add_argument('--symbol', default='p9_boot6_image',
-                    choices=['p9_boot6_image', 'p9_kfs6_image'],
+                    choices=['p9_boot6_image', 'p9_kfs6_image', 'p9_init6_image', 'p9_rc6_image'],
                     help='C array symbol for the generated header')
     args = ap.parse_args()
     image = args.image.read_bytes()

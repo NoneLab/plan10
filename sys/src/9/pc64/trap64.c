@@ -61,6 +61,13 @@ trapinit0(void)
     p9_amd64_lidt(&idtr);
 }
 
+static void
+p9_amd64_usernote(Ureg* ur)
+{
+    if (up != nil && userureg(ur) && (up->procctl || up->nnote))
+        notify(ur);
+}
+
 /*
  * The first real IRQ path: rearmed PIT channel 0 and the original Plan 9
  * /port timer queue.  Other hardware IRQs and userspace faults remain
@@ -69,6 +76,12 @@ trapinit0(void)
 void
 p9_amd64_trap(Ureg *ur)
 {
+    if (userureg(ur) && up != nil)
+    {
+        up->dbgreg = ur;
+        up->pc = ur->ip;
+    }
+
     if (ur->type == P9_VECTOR_SYSCALL)
     {
         if (!userureg(ur) || up == nil)
@@ -111,12 +124,29 @@ p9_amd64_trap(Ureg *ur)
             if (fault(addr, read) == 0)
             {
                 splx(saved);
+                p9_amd64_usernote(ur);
                 return;
             }
             splx(saved);
-            panic("pc64: unresolved page fault va %#llux ip %#llux err %#llux",
-                (uvlong)addr, (uvlong)ur->ip, (uvlong)ur->error);
+            if(!userureg(ur))
+                panic("pc64: unresolved page fault va %#llux ip %#llux err %#llux",
+                    (uvlong)addr, (uvlong)ur->ip, (uvlong)ur->error);
         }
+    }
+
+    if (ur->type == 14 && up != nil && userureg(ur))
+    {
+        char buf[ERRMAX];
+        int saved;
+
+        snprint(buf, sizeof(buf), "sys: trap: fault %s addr=%#llux",
+                (ur->error & 2) ? "write" : "read", (uvlong)getcr2());
+        
+        saved  = spllo();
+        postnote(up, 1, buf, NDebug);
+        splx(saved);
+        p9_amd64_usernote(ur);
+        return;
     }
 
     if(ur->type == 32){
@@ -132,9 +162,26 @@ p9_amd64_trap(Ureg *ur)
             sched();
             splhi();
         }
-
+    
+        p9_amd64_usernote(ur);
         return;
     }
+
+    if (userureg(ur) && up != nil)
+    {
+        char buf[ERRMAX];
+        int saved;
+
+        snprint(buf, sizeof buf, "sys: trap: vector %llud", (uvlong)ur->type);
+
+        saved = spllo();
+        postnote(up, 1, buf, NDebug);
+        splx(saved);
+        
+        p9_amd64_usernote(ur);
+        return;
+    }
+
     panic("amd64 exception/irq: vector %llud err %#llux ip %#llux cs %#llux",
         (uvlong)ur->type, (uvlong)ur->error, (uvlong)ur->ip,
         (uvlong)ur->cs);

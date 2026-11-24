@@ -42,3 +42,4 @@ vlong seek(int fd,vlong offset,int whence) {
     if(SC(SEEK,&result,fd,offset,0,whence)<0) return -1;
     return result;
 }
+int fd2path(int fd, char * path, int len) { return SC(FD2PATH,fd,path,len,0,0); }

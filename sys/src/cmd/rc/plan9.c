@@ -29,7 +29,11 @@ char *syssigname[] = {
 	"term",
 	0
 };
+#if defined(P9_NATIVE_BOOT64) && defined(P9_BOOT_RC_EMBED)
+char *Rcmain = "/boot/rcmain";
+#else
 char *Rcmain = "/rc/lib/rcmain";
+#endif
 char *Fdprefix = "/fd/";
 
 void execfinit(void);

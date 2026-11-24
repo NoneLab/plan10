@@ -3,7 +3,11 @@
 
 /* extensible Strings */
 typedef struct String {
+#ifdef P9_NATIVE_BOOT64
+	Lock lock;
+#else
 	Lock;
+#endif
 	char	*base;	/* base of String */
 	char	*end;	/* end of allocated space+1 */
 	char	*ptr;	/* ptr into String */
