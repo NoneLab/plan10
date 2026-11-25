@@ -33,41 +33,58 @@ $(error Duplicate output basename in $(LOCAL_MODULE): $(_p9_obj_names))
 endif
 LOCAL_BUILT_OBJECTS := $(addprefix $(LOCAL_OBJ_DIR)/,$(_p9_obj_names))
 
+# Object modules are reusable, including CRTs. Consumers must match ABI.
+P9_OBJECT_MODULE.$(LOCAL_MODULE) := $(LOCAL_BUILT_OBJECTS)
+P9_OBJECT_TARGET.$(LOCAL_MODULE) := $(if $(LOCAL_TARGET),$(LOCAL_TARGET),legacy)
+
 # Make rules are emitted per-source to support sources in sibling folders
 # and to allow mixed .c/.cc/.S lists in one module.
 define _p9_emit_c
 $(2): private _P9_LOCAL_CFLAGS := $(3)
+$(2): private _P9_CC := $(4)
 $(2): $(1)
 	@mkdir -p "$$(dir $$@)"
-	$$(CLANG) $$(_P9_LOCAL_CFLAGS) -c "$$<" -o "$$@"
+	$$(_P9_CC) $$(_P9_LOCAL_CFLAGS) -c "$$<" -o "$$@"
 endef
 
 define _p9_emit_cxx
 $(2): private _P9_LOCAL_CXXFLAGS := $(3)
+$(2): private _P9_CXX := $(4)
 $(2): $(1)
 	@mkdir -p "$$(dir $$@)"
-	$$(CLANGPP) $$(_P9_LOCAL_CXXFLAGS) -c "$$<" -o "$$@"
+	$$(_P9_CXX) $$(_P9_LOCAL_CXXFLAGS) -c "$$<" -o "$$@"
 endef
 
 define _p9_emit_asm
 $(2): private _P9_LOCAL_ASFLAGS := $(3)
+$(2): private _P9_AS := $(4)
 $(2): $(1)
 	@mkdir -p "$$(dir $$@)"
-	$$(CLANG) $$(_P9_LOCAL_ASFLAGS) -c "$$<" -o "$$@"
+	$$(_P9_AS) $$(_P9_LOCAL_ASFLAGS) -c "$$<" -o "$$@"
 endef
 
 # Snapshot options at declaration time: successive modules use CLEAR_VARS.
-$(foreach _p9_source,$(filter %.c,$(LOCAL_SRC_FILES)),\
-  $(eval $(call _p9_emit_c,$(_p9_src_dir)/$(_p9_source),\
-    $(LOCAL_OBJ_DIR)/$(basename $(notdir $(_p9_source))).o,$(LOCAL_CFLAGS))))
-$(foreach _p9_source,$(filter %.cc,$(LOCAL_SRC_FILES)),\
-  $(eval $(call _p9_emit_cxx,$(_p9_src_dir)/$(_p9_source),\
-    $(LOCAL_OBJ_DIR)/$(basename $(notdir $(_p9_source))).o,$(LOCAL_CXXFLAGS))))
-$(foreach _p9_source,$(filter %.S,$(LOCAL_SRC_FILES)),\
-  $(eval $(call _p9_emit_asm,$(_p9_src_dir)/$(_p9_source),\
-    $(LOCAL_OBJ_DIR)/$(basename $(notdir $(_p9_source))).o,$(LOCAL_ASFLAGS))))
+# Choose a compiler per module; the emitting macros capture it per object.
+_p9_cc  := $(if $(LOCAL_C_COMPILER),$(LOCAL_C_COMPILER),$(CLANG))
+_p9_cxx := $(if $(LOCAL_CXX_COMPILER),$(LOCAL_CXX_COMPILER),$(CLANGPP))
+_p9_as  := $(if $(LOCAL_AS_COMPILER),$(LOCAL_AS_COMPILER),$(CLANG))
 
-_p9_unknown_ext := $(filter-out %.c %.cc %.S,$(LOCAL_SRC_FILES))
+$(foreach source,$(filter %.c,$(LOCAL_SRC_FILES)),\
+  $(eval $(call _p9_emit_c,$(_p9_src_dir)/$(source),\
+    $(LOCAL_OBJ_DIR)/$(basename $(notdir $(source))).o,\
+    $(LOCAL_CFLAGS),$(_p9_cc))))
+
+$(foreach source,$(filter %.cc %.cpp %.cxx,$(LOCAL_SRC_FILES)),\
+  $(eval $(call _p9_emit_cxx,$(_p9_src_dir)/$(source),\
+    $(LOCAL_OBJ_DIR)/$(basename $(notdir $(source))).o,\
+    $(LOCAL_CXXFLAGS),$(_p9_cxx))))
+
+$(foreach source,$(filter %.S,$(LOCAL_SRC_FILES)),\
+  $(eval $(call _p9_emit_asm,$(_p9_src_dir)/$(source),\
+    $(LOCAL_OBJ_DIR)/$(basename $(notdir $(source))).o,\
+    $(LOCAL_ASFLAGS),$(_p9_as))))
+
+_p9_unknown_ext := $(filter-out %.c %.cc %.cpp %.cxx %.S,$(LOCAL_SRC_FILES))
 ifneq ($(strip $(_p9_unknown_ext)),)
 $(error Unsupported source extension in $(LOCAL_MODULE): $(_p9_unknown_ext))
 endif

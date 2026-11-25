@@ -233,6 +233,7 @@ include sys/src/cmd/disk/kfs/Plan9.mk
 
 include sys/src/cmd/Plan9.mk
 include sys/src/cmd/rc/Plan9.mk
+include rc/lib/Plan9.mk
 include tools/kfs/Plan9.mk
 
 # pc64 kernel ELF and physical Multiboot image
@@ -267,26 +268,16 @@ kernel-deps: $(MACHINE_OBJS) $(PORT_KERNEL_OBJS) $(KERNEL_LIBC_OBJS) $(KERNEL_9S
 
 # Resolve the actual Plan 9 main(), original /port kernel and selected
 # device implementations.  Never generate a substitute test kernel.
-$(KERNEL_ELF): $(MACHINE_OBJS) $(PORT_KERNEL_OBJS) $(KERNEL_LIBC_OBJS) $(KERNEL_9SYS_OBJS) $(KERNEL_FMT_OBJS) $(KERNEL_LDSCRIPT)
-	@mkdir -p "$(dir $@)"
-	$(LLD) \
-		-m elf_x86_64 \
-		-nostdlib \
-		-z max-page-size=0x1000 \
-		-T "$(KERNEL_LDSCRIPT)" \
-		-o "$@" \
-		$(MACHINE_OBJS) \
-		$(PORT_KERNEL_OBJS) \
-		$(KERNEL_LIBC_OBJS) \
-		$(KERNEL_9SYS_OBJS) \
-		$(KERNEL_FMT_OBJS)
-
-# The flat image contains the *same* native kernel image laid out by its
-# physical load addresses; it is not a distinct executable or kernel.
-# objcopy drops ELF metadata, but the ELF remains available for GDB.
-$(KERNEL_MB): $(KERNEL_ELF)
-	@mkdir -p "$(dir $@)"
-	$(OBJCOPY) -O binary "$<" "$@"
+# The kernel is an ELF64 binary, not a 6.out userspace executable.
+include $(CLEAR_VARS)
+LOCAL_MODULE := pc64-kernel
+LOCAL_TARGET := kernel
+LOCAL_KERNEL_ELF := $(KERNEL_ELF)
+LOCAL_KERNEL_MB := $(KERNEL_MB)
+LOCAL_KERNEL_LDSCRIPT := $(KERNEL_LDSCRIPT)
+LOCAL_KERNEL_OBJECTS := $(MACHINE_OBJS) $(PORT_KERNEL_OBJS) \
+    $(KERNEL_LIBC_OBJS) $(KERNEL_9SYS_OBJS) $(KERNEL_FMT_OBJS)
+include $(BUILD_KERNEL)
 
 # Linked image layout and original Plan 9 kernel symbol validation.
 .PHONY: kernel-verify

@@ -16,47 +16,6 @@ LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS) -I$(LOCAL_PATH) \
 include $(BUILD_OBJECTS)
 KFS_SOURCE_OBJS := $(LOCAL_BUILT_OBJECTS)
 
-# _start has the same argc/argv/stack ABI as native /boot/boot.
-include $(CLEAR_VARS)
-LOCAL_MODULE := kfs-amd64-start
-LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs
-LOCAL_SRC_DIR := sys/src/cmd/disk/kfs/amd64
-LOCAL_SRC_FILES := start.S
-LOCAL_ASFLAGS := --target=$(TARGET_TRIPLE) -mno-red-zone
-include $(BUILD_OBJECTS)
-KFS_ENTRY_OBJS := $(LOCAL_BUILT_OBJECTS)
-
-# Link the real Plan 9 user libraries needed by the historical KFS sources.
-# These are separate objects from boot, preserving the original boot binary.
-include $(CLEAR_VARS)
-LOCAL_MODULE := kfs-libc-port
-LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs/libc-port
-LOCAL_SRC_DIR := sys/src/libc/port
-LOCAL_SRC_FILES := \
-    readn.c lrand.c nrand.c \
-    nan.c toupper.c frexp.c pow10.c strtod.c fabs.c crypt.c muldiv.c
-LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
-include $(BUILD_OBJECTS)
-KFS_PORT_EXTRAS := $(LOCAL_BUILT_OBJECTS)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := kfs-libc-9sys
-LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs/libc-9sys
-LOCAL_SRC_DIR := sys/src/libc/9sys
-LOCAL_SRC_FILES := nsec.c time.c announce.c truerand.c fcallfmt.c
-LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
-include $(BUILD_OBJECTS)
-KFS_9SYS_EXTRAS := $(LOCAL_BUILT_OBJECTS)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := kfs-libc-fmt
-LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs/libc-fmt
-LOCAL_SRC_DIR := sys/src/libc/fmt
-LOCAL_SRC_FILES := fmtlock.c fltfmt.c
-LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
-include $(BUILD_OBJECTS)
-KFS_FMT_EXTRAS := $(LOCAL_BUILT_OBJECTS)
-
 include $(CLEAR_VARS)
 LOCAL_MODULE := kfs-libauthsrv
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs/libauthsrv
@@ -75,23 +34,25 @@ LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS) -Isys/src/libmp/port
 include $(BUILD_OBJECTS)
 KFS_SEC_OBJS := $(LOCAL_BUILT_OBJECTS)
 
-# KFS supplies its own print(2) implementation to keep the 9P pipe clean.
-KFS_RUNTIME_OBJS := $(filter-out $(BUILD_DIR)/obj/boot64-lib/fmt/print.o,$(BOOT64_LIB_OBJS)) \
-    $(KFS_PORT_EXTRAS) $(KFS_9SYS_EXTRAS) $(KFS_FMT_EXTRAS) \
-    $(KFS_AUTHSRV_OBJS) $(KFS_SEC_OBJS)
+# KFS contributes authentication and security code outside libc.
+KFS_SUPPORT_OBJS := \
+    $(BOOT64_SUPPORT_OBJS) \
+    $(KFS_AUTHSRV_OBJS) \
+    $(KFS_SEC_OBJS)
 
-KFS_ELF := $(BUILD_DIR)/kfs/kfs.elf
-KFS_IMAGE := $(BUILD_DIR)/kfs/kfs.6.out
-
-$(KFS_ELF): $(KFS_SOURCE_OBJS) $(KFS_ENTRY_OBJS) $(KFS_RUNTIME_OBJS) sys/src/9/pc64/boot6.ld
-	@mkdir -p "$(dir $@)"
-	$(LLD) -m elf_x86_64 -nostdlib --gc-sections \
-	    -z max-page-size=0x1000 --build-id=none \
-	    -T sys/src/9/pc64/boot6.ld -o "$@" \
-	    $(KFS_ENTRY_OBJS) $(KFS_SOURCE_OBJS) $(KFS_RUNTIME_OBJS)
-
-$(KFS_IMAGE): $(KFS_ELF) tools/pc64/elf26out.py
-	$(PYTHON) tools/pc64/elf26out.py "$<" "$@"
+# Bootstrap executable: common CRT and KFS-specific print(2).
+include $(CLEAR_VARS)
+LOCAL_MODULE := kfs-executable
+LOCAL_TARGET := userspace
+LOCAL_MODULE_PATH := $(BUILD_DIR)/kfs
+LOCAL_MODULE_FILENAME := kfs
+LOCAL_SYSTEM_STATIC_LIBRARIES := libc-plan9
+LOCAL_EXTRA_OBJECTS := \
+    $(KFS_SOURCE_OBJS) \
+    $(KFS_SUPPORT_OBJS)
+include $(BUILD_BOOTSTRAP_EXECUTABLE)
+KFS_ELF := $(LOCAL_BUILT_ELF)
+KFS_IMAGE := $(LOCAL_BUILT_MODULE)
 
 .PHONY: kfs-amd64 kfs-source-check
 kfs-amd64: $(KFS_IMAGE)

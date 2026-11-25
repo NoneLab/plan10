@@ -29,17 +29,6 @@ RC_SOURCE_OBJS := $(LOCAL_BUILT_OBJECTS)
 # All rc objects include rc.h, which includes the generated x.tab.h.
 $(RC_SOURCE_OBJS): $(RC_PARSER_H)
 
-# rc owns argv0 in exec.c, so it requires an entry that does not
-# declare the KFS/boot start.S argv0 symbol a second time.
-include $(CLEAR_VARS)
-LOCAL_MODULE := rc-amd64-entry
-LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/rc
-LOCAL_SRC_DIR := sys/src/cmd/rc/amd64
-LOCAL_SRC_FILES := start.S
-LOCAL_ASFLAGS := --target=$(TARGET_TRIPLE) -mno-red-zone
-include $(BUILD_OBJECTS)
-RC_ENTRY_OBJS := $(LOCAL_BUILT_OBJECTS)
-
 RC_PARSER_OBJ := $(BUILD_DIR)/obj/rc/y.tab.o
 $(RC_PARSER_OBJ): $(RC_PARSER_C) $(RC_PARSER_H)
 	@mkdir -p "$(dir $@)"
@@ -48,28 +37,28 @@ $(RC_PARSER_OBJ): $(RC_PARSER_C) $(RC_PARSER_H)
 # rc/plan9.c provides _efgfmt itself; the KFS floating formatter would
 # otherwise introduce a duplicate definition.
 include sys/src/libString/Plan9.mk
+# rc contributes only libString and its own parser outside libc.
+RC_SUPPORT_OBJS := \
+    $(INIT_SUPPORT_OBJS) \
+    $(RC_STRING_OBJS)
+
+# Normal userspace executable: rc keeps its initialized argv0 in exec.c.
 include $(CLEAR_VARS)
-LOCAL_MODULE := rc-libc-port
-LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/rc/libc-port
-LOCAL_SRC_DIR := sys/src/libc/port
-LOCAL_SRC_FILES := utfutf.c needsrcquote.c
-LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
-include $(BUILD_OBJECTS)
-RC_PORT_OBJS := $(LOCAL_BUILT_OBJECTS)
-
-RC_RUNTIME_OBJS := $(filter-out $(BUILD_DIR)/obj/kfs/libc-fmt/fltfmt.o,$(INIT_RUNTIME_OBJS)) $(RC_PORT_OBJS) $(RC_STRING_OBJS)
-RC_ELF := $(BUILD_DIR)/rc/rc.elf
-RC_NATIVE_IMAGE := $(BUILD_DIR)/rc/rc.6.out
-
-$(RC_ELF): $(RC_ENTRY_OBJS) $(RC_SOURCE_OBJS) $(RC_PARSER_OBJ) $(RC_RUNTIME_OBJS) sys/src/9/pc64/boot6.ld
-	@mkdir -p "$(dir $@)"
-	$(LLD) -m elf_x86_64 -nostdlib --gc-sections \
-	    -z max-page-size=0x1000 --build-id=none \
-	    -T sys/src/9/pc64/boot6.ld -o "$@" \
-	    $(RC_ENTRY_OBJS) $(RC_SOURCE_OBJS) $(RC_PARSER_OBJ) $(RC_RUNTIME_OBJS)
-
-$(RC_NATIVE_IMAGE): $(RC_ELF) tools/pc64/elf26out.py
-	$(PYTHON) tools/pc64/elf26out.py "$<" "$@"
+LOCAL_MODULE := rc-executable
+LOCAL_TARGET := userspace
+LOCAL_MODULE_PATH := $(BUILD_DIR)/rc
+LOCAL_MODULE_FILENAME := rc
+LOCAL_INSTALL_IMAGE := kfs
+LOCAL_INSTALL_PATH := /bin
+# libc-plan9.a is the default system runtime for native userspace.
+LOCAL_SYSTEM_STATIC_LIBRARIES := default
+LOCAL_EXTRA_OBJECTS := \
+    $(RC_SOURCE_OBJS) \
+    $(RC_PARSER_OBJ) \
+    $(RC_SUPPORT_OBJS)
+include $(BUILD_USER_EXECUTABLE)
+RC_ELF := $(LOCAL_BUILT_ELF)
+RC_NATIVE_IMAGE := $(LOCAL_BUILT_MODULE)
 
 .PHONY: rc-amd64 rc-source-check
 rc-amd64: $(RC_NATIVE_IMAGE)

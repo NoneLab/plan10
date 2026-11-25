@@ -28,28 +28,28 @@ LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
 include $(BUILD_OBJECTS)
 BOOT64_SOURCE_OBJS := $(LOCAL_BUILT_OBJECTS)
 
-# boot64-entry
+# boot64-config: bootconf.c defines main, platform config and argv0.
+# _start is supplied by the default userspace CRT, not bootstart.S.
 include $(CLEAR_VARS)
-LOCAL_MODULE := boot64-entry
+LOCAL_MODULE := boot64-config
+LOCAL_TARGET := userspace
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/boot64
 LOCAL_SRC_DIR := sys/src/9/pc64
-LOCAL_SRC_FILES := \
-    bootconf.c bootstart.S
+LOCAL_SRC_FILES := bootconf.c
 LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
-LOCAL_ASFLAGS := --target=$(TARGET_TRIPLE) -mno-red-zone
 include $(BUILD_OBJECTS)
-BOOT64_ENTRY_OBJS := $(LOCAL_BUILT_OBJECTS)
+BOOT64_CONFIG_OBJS := $(LOCAL_BUILT_OBJECTS)
 
 .PHONY: boot64-source-check boot64-deps boot64-package
-boot64-source-check: $(BOOT64_SOURCE_OBJS) $(BOOT64_ENTRY_OBJS)
-	@echo "Original Plan 9 boot source compiled: $(words $(BOOT64_SOURCE_OBJS)) modules, plus native entry/config"
+boot64-source-check: $(BOOT64_SOURCE_OBJS) $(BOOT64_CONFIG_OBJS) $(CRT0_AMD64_OBJS)
+	@echo "Original Plan 9 boot source compiled: $(words $(BOOT64_SOURCE_OBJS)) modules, plus boot config and shared CRT"
 	@echo "This is NOT a complete linked boot program or a QEMU execution test"
 
 check: boot64-source-check
 
 boot64-deps: boot64-source-check
 	@mkdir -p "$(BUILD_DIR)/audit"
-	$(LLD) -m elf_x86_64 -r $(BOOT64_SOURCE_OBJS) $(BOOT64_ENTRY_OBJS) \
+	$(LLD) -m elf_x86_64 -r $(CRT0_AMD64_OBJS) $(BOOT64_SOURCE_OBJS) $(BOOT64_CONFIG_OBJS) \
 	    -o "$(BUILD_DIR)/audit/boot64-objects.o"
 	@nm -u "$(BUILD_DIR)/audit/boot64-objects.o" | sed -n 's/^ *U //p' | sort -u \
 	    > "$(BUILD_DIR)/audit/boot64-unresolved.txt"
@@ -67,24 +67,30 @@ else
 	$(PYTHON) tools/pc64/elf26out.py "$(BOOT64_ELF)" "$(BUILD_DIR)/boot64/boot.6.out"
 endif
 
-BOOT64_LIB_OBJS := $(BOOT64_PORT_OBJS) $(BOOT64_9SYS_OBJS) $(BOOT64_FMT_OBJS) \
-    $(BOOT64_AUTH_OBJS) $(BOOT64_IP_OBJS) $(BOOT64_BIO_OBJS) $(BOOT64_RUNTIME_OBJS)
+# Authentication, networking and buffered I/O remain outside libc.
+# libc objects are provided by the registered libc-plan9.a system archive.
+BOOT64_SUPPORT_OBJS := \
+    $(BOOT64_AUTH_OBJS) \
+    $(BOOT64_IP_OBJS) \
+    $(BOOT64_BIO_OBJS)
 
--include $(BOOT64_LIB_OBJS:.o=.d)
 
-
-BOOT64_NATIVE_ELF := $(BUILD_DIR)/boot64/boot.elf
-BOOT64_NATIVE_IMAGE := $(BUILD_DIR)/boot64/boot.6.out
-
-$(BOOT64_NATIVE_ELF): $(BOOT64_SOURCE_OBJS) $(BOOT64_ENTRY_OBJS) $(BOOT64_LIB_OBJS) sys/src/9/pc64/boot6.ld
-	@mkdir -p "$(dir $@)"
-	$(LLD) -m elf_x86_64 -nostdlib --gc-sections \
-	    -z max-page-size=0x1000 --build-id=none \
-	    -T sys/src/9/pc64/boot6.ld -o "$@" \
-	    $(BOOT64_ENTRY_OBJS) $(BOOT64_SOURCE_OBJS) $(BOOT64_LIB_OBJS)
-
-$(BOOT64_NATIVE_IMAGE): $(BOOT64_NATIVE_ELF) tools/pc64/elf26out.py
-	$(PYTHON) tools/pc64/elf26out.py "$<" "$@"
+# Bootstrap executable: the kernel embeds the resulting /boot/boot 6.out.
+# The common userspace linker keeps an ELF intermediate for diagnostics.
+include $(CLEAR_VARS)
+LOCAL_MODULE := boot64-executable
+LOCAL_TARGET := userspace
+LOCAL_MODULE_PATH := $(BUILD_DIR)/boot64
+LOCAL_MODULE_FILENAME := boot
+# Common crt0-amd64, plus the pinned Plan 9 libc system archive.
+LOCAL_SYSTEM_STATIC_LIBRARIES := libc-plan9
+LOCAL_EXTRA_OBJECTS := \
+    $(BOOT64_CONFIG_OBJS) \
+    $(BOOT64_SOURCE_OBJS) \
+    $(BOOT64_SUPPORT_OBJS)
+include $(BUILD_BOOTSTRAP_EXECUTABLE)
+BOOT64_NATIVE_ELF := $(LOCAL_BUILT_ELF)
+BOOT64_NATIVE_IMAGE := $(LOCAL_BUILT_MODULE)
 
 .PHONY: boot64-native
 boot64-native: $(BOOT64_NATIVE_IMAGE)

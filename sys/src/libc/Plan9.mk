@@ -11,6 +11,7 @@ LOCAL_PATH := $(call my-dir)
 # kernel-libc
 include $(CLEAR_VARS)
 LOCAL_MODULE := kernel-libc
+LOCAL_TARGET := kernel
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/libc
 LOCAL_SRC_DIR := sys/src/libc/port
 LOCAL_SRC_FILES := \
@@ -28,6 +29,7 @@ KERNEL_LIBC_OBJS := $(LOCAL_BUILT_OBJECTS)
 # kernel-9sys
 include $(CLEAR_VARS)
 LOCAL_MODULE := kernel-9sys
+LOCAL_TARGET := kernel
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/9sys
 LOCAL_SRC_DIR := sys/src/libc/9sys
 LOCAL_SRC_FILES := \
@@ -40,6 +42,7 @@ KERNEL_9SYS_OBJS := $(LOCAL_BUILT_OBJECTS)
 # kernel-fmt
 include $(CLEAR_VARS)
 LOCAL_MODULE := kernel-fmt
+LOCAL_TARGET := kernel
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/fmt
 LOCAL_SRC_DIR := sys/src/libc/fmt
 LOCAL_SRC_FILES := \
@@ -54,6 +57,7 @@ KERNEL_FMT_OBJS := $(LOCAL_BUILT_OBJECTS)
 # boot64-libc-port
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot64-libc-port
+LOCAL_TARGET := userspace
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/boot64-lib/port
 LOCAL_SRC_DIR := sys/src/libc/port
 LOCAL_SRC_FILES := \
@@ -74,6 +78,7 @@ BOOT64_PORT_OBJS := $(LOCAL_BUILT_OBJECTS)
 # boot64-libc-9sys
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot64-libc-9sys
+LOCAL_TARGET := userspace
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/boot64-lib/9sys
 LOCAL_SRC_DIR := sys/src/libc/9sys
 LOCAL_SRC_FILES := \
@@ -90,6 +95,7 @@ BOOT64_9SYS_OBJS := $(LOCAL_BUILT_OBJECTS)
 # boot64-libc-fmt
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot64-libc-fmt
+LOCAL_TARGET := userspace
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/boot64-lib/fmt
 LOCAL_SRC_DIR := sys/src/libc/fmt
 LOCAL_SRC_FILES := \
@@ -106,6 +112,7 @@ BOOT64_FMT_OBJS := $(LOCAL_BUILT_OBJECTS)
 # boot64-libc-runtime
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot64-libc-runtime
+LOCAL_TARGET := userspace
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/boot64-lib/amd64
 LOCAL_SRC_DIR := sys/src/libc/amd64
 LOCAL_SRC_FILES := \
@@ -128,6 +135,7 @@ boot64-libc: $(BOOT64_PORT_OBJS) $(BOOT64_9SYS_OBJS) $(BOOT64_FMT_OBJS) $(BOOT64
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := init-libc-port
+LOCAL_TARGET := userspace
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/init/libc-port
 LOCAL_SRC_DIR := sys/src/libc/port
 LOCAL_SRC_FILES := atnotify.c strpbrk.c netmkaddr.c
@@ -137,9 +145,89 @@ INIT_PORT_EXTRAS := $(LOCAL_BUILT_OBJECTS)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := init-libc-9sys
+LOCAL_TARGET := userspace
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/init/libc-9sys
 LOCAL_SRC_DIR := sys/src/libc/9sys
 LOCAL_SRC_FILES := postnote.c getwd.c
 LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
 include $(BUILD_OBJECTS)
 INIT_9SYS_EXTRAS := $(LOCAL_BUILT_OBJECTS)
+
+# ---------------------------------------------------------------------------
+# Native AMD64 Plan 9 libc: a single userspace archive for boot, kfs, init,
+# rc and future commands. The manifest includes functions historically
+# compiled under each executable's directory; the archive linker extracts
+# only the required members.
+#
+# KFS defines its own print() and rc defines its own floating-point formatter.
+# Static archive extraction retains those original overrides without passing
+# every libc object to the linker unconditionally.
+# ---------------------------------------------------------------------------
+
+# KFS requires additional libc functions beyond the original boot subset.
+include $(CLEAR_VARS)
+LOCAL_MODULE := kfs-libc-port
+LOCAL_TARGET := userspace
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs/libc-port
+LOCAL_SRC_DIR := sys/src/libc/port
+LOCAL_SRC_FILES := \
+    readn.c lrand.c nrand.c \
+    nan.c toupper.c frexp.c pow10.c strtod.c fabs.c crypt.c muldiv.c
+LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
+include $(BUILD_OBJECTS)
+KFS_PORT_EXTRAS := $(LOCAL_BUILT_OBJECTS)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := kfs-libc-9sys
+LOCAL_TARGET := userspace
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs/libc-9sys
+LOCAL_SRC_DIR := sys/src/libc/9sys
+LOCAL_SRC_FILES := nsec.c time.c announce.c truerand.c fcallfmt.c
+LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
+include $(BUILD_OBJECTS)
+KFS_9SYS_EXTRAS := $(LOCAL_BUILT_OBJECTS)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := kfs-libc-fmt
+LOCAL_TARGET := userspace
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/kfs/libc-fmt
+LOCAL_SRC_DIR := sys/src/libc/fmt
+LOCAL_SRC_FILES := fmtlock.c fltfmt.c
+LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
+include $(BUILD_OBJECTS)
+KFS_FMT_EXTRAS := $(LOCAL_BUILT_OBJECTS)
+
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := rc-libc-port
+LOCAL_TARGET := userspace
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/rc/libc-port
+LOCAL_SRC_DIR := sys/src/libc/port
+LOCAL_SRC_FILES := utfutf.c needsrcquote.c
+LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
+include $(BUILD_OBJECTS)
+RC_PORT_OBJS := $(LOCAL_BUILT_OBJECTS)
+
+
+# All Plan 9 userspace libc objects share one ABI and use the same original
+# compilation flags. Keep their original output paths during the transition.
+PLAN9_USER_LIBC_OBJS := \
+    $(BOOT64_PORT_OBJS) \
+    $(BOOT64_9SYS_OBJS) \
+    $(BOOT64_FMT_OBJS) \
+    $(BOOT64_RUNTIME_OBJS) \
+    $(KFS_PORT_EXTRAS) \
+    $(KFS_9SYS_EXTRAS) \
+    $(KFS_FMT_EXTRAS) \
+    $(INIT_PORT_EXTRAS) \
+    $(INIT_9SYS_EXTRAS) \
+    $(RC_PORT_OBJS)
+
+# Archive already-registered object modules: BUILD_STATIC_LIBRARY does not
+# compile these sources again or merge transitive dependencies into the .a.
+include $(CLEAR_VARS)
+LOCAL_MODULE := libc-plan9
+LOCAL_TARGET := userspace
+LOCAL_BUILT_OBJECTS := $(PLAN9_USER_LIBC_OBJS)
+include $(BUILD_STATIC_LIBRARY)
+PLAN9_LIBC_ARCHIVE := $(LOCAL_BUILT_ARCHIVE)

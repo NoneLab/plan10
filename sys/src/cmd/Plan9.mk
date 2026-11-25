@@ -10,25 +10,28 @@ LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
 include $(BUILD_OBJECTS)
 INIT_SOURCE_OBJS := $(LOCAL_BUILT_OBJECTS)
 
-# The native 6.out entry and Plan 9 libc are shared with KFS, not reimplemented.
-INIT_ENTRY_OBJS := $(KFS_ENTRY_OBJS)
+# The common CRT supplies _start. libc comes from libc-plan9.a, while
+# authentication and other support objects are still linked explicitly.
+INIT_SUPPORT_OBJS := \
+    $(KFS_SUPPORT_OBJS) \
+    $(INIT_AUTH_OBJS)
 
-INIT_RUNTIME_OBJS := $(BOOT64_LIB_OBJS) $(KFS_PORT_EXTRAS) \
-    $(KFS_9SYS_EXTRAS) $(KFS_FMT_EXTRAS) $(KFS_AUTHSRV_OBJS) \
-    $(KFS_SEC_OBJS) $(INIT_AUTH_OBJS) $(INIT_PORT_EXTRAS) $(INIT_9SYS_EXTRAS)
-
-INIT_ELF := $(BUILD_DIR)/init/init.elf
-INIT_NATIVE_IMAGE := $(BUILD_DIR)/init/init.6.out
-
-$(INIT_ELF): $(INIT_ENTRY_OBJS) $(INIT_SOURCE_OBJS) $(INIT_RUNTIME_OBJS) sys/src/9/pc64/boot6.ld
-	@mkdir -p "$(dir $@)"
-	$(LLD) -m elf_x86_64 -nostdlib --gc-sections \
-	    -z max-page-size=0x1000 --build-id=none \
-	    -T sys/src/9/pc64/boot6.ld -o "$@" \
-	    $(INIT_ENTRY_OBJS) $(INIT_SOURCE_OBJS) $(INIT_RUNTIME_OBJS)
-
-$(INIT_NATIVE_IMAGE): $(INIT_ELF) tools/pc64/elf26out.py
-	$(PYTHON) tools/pc64/elf26out.py "$<" "$@"
+# Bootstrap executable: init loads from disk-backed KFS by default.
+# Both bootstrap and regular userspace use the same _start.
+include $(CLEAR_VARS)
+LOCAL_MODULE := init-executable
+LOCAL_TARGET := userspace
+LOCAL_MODULE_PATH := $(BUILD_DIR)/init
+LOCAL_MODULE_FILENAME := init
+LOCAL_INSTALL_IMAGE := kfs
+LOCAL_INSTALL_PATH := /amd64
+LOCAL_SYSTEM_STATIC_LIBRARIES := libc-plan9
+LOCAL_EXTRA_OBJECTS := \
+    $(INIT_SOURCE_OBJS) \
+    $(INIT_SUPPORT_OBJS)
+include $(BUILD_BOOTSTRAP_EXECUTABLE)
+INIT_ELF := $(LOCAL_BUILT_ELF)
+INIT_NATIVE_IMAGE := $(LOCAL_BUILT_MODULE)
 
 .PHONY: init-amd64 init-source-check
 init-amd64: $(INIT_NATIVE_IMAGE)

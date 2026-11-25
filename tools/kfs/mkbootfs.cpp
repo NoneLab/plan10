@@ -17,7 +17,8 @@ struct Mapping { std::string host; std::string guest; };
     if (!error.empty()) std::cerr << "mkbootfs.kfs: " << error << "\n";
     std::cerr << "usage:\n"
               << "  mkbootfs.kfs create --output FILE --size 64M [--block-size 1024]"
-              << " [--dir /PATH] [--file HOST:/PATH] [--executable /PATH] [--force]\n"
+              << " [--root DIR] [--dir /PATH] [--file HOST:/PATH]"
+              << " [--executable /PATH] [--force]\n"
               << "  mkbootfs.kfs verify --image FILE [--file HOST:/PATH] [--list]\n";
     throw std::invalid_argument(error.empty() ? "usage" : error);
 }
@@ -41,6 +42,44 @@ Mapping mapping(const std::string& arg) {
         usage("--file expects HOST_PATH:/absolute/guest/path");
     return {arg.substr(0, sep), arg.substr(sep+1)};
 }
+
+// Walk an already-staged root filesystem. Import paths are always relative
+// to --root, never to the host filesystem root. Deliberately reject symlinks
+// and special files: original KFS has no matching portable host semantics.
+std::vector<Mapping> import_root(p9::kfs::Builder& builder,
+                                 const std::filesystem::path& root) {
+    namespace fs = std::filesystem;
+    if (fs::is_symlink(fs::symlink_status(root)) || !fs::is_directory(root))
+        throw std::runtime_error("--root must be a real directory: " + root.string());
+
+    std::vector<fs::path> paths;
+    for (const auto& item : fs::recursive_directory_iterator(root))
+        paths.push_back(item.path());
+    std::sort(paths.begin(), paths.end(), [&](const auto& a, const auto& b) {
+        return a.lexically_relative(root).generic_string() <
+               b.lexically_relative(root).generic_string();
+    });
+
+    std::vector<Mapping> imported;
+    for (const auto& path : paths) {
+        const auto relative = path.lexically_relative(root);
+        const auto guest = "/" + relative.generic_string();
+        const auto status = fs::symlink_status(path);
+        if (fs::is_symlink(status))
+            throw std::runtime_error("KFS cannot import symlink: " + path.string());
+        if (fs::is_directory(status)) {
+            builder.directory(guest);
+        } else if (fs::is_regular_file(status)) {
+            const auto mode = static_cast<uint16_t>(
+                static_cast<unsigned>(status.permissions()) & 0777U);
+            builder.file(guest, read_host(path.string()), mode);
+            imported.push_back({path.string(), guest});
+        } else {
+            throw std::runtime_error("KFS cannot import special file: " + path.string());
+        }
+    }
+    return imported;
+}
 }
 
 int main(int argc, char** argv) {
@@ -49,6 +88,7 @@ int main(int argc, char** argv) {
         const std::string command(argv[1]);
         if (command != "create" && command != "verify") usage("unknown command " + command);
         std::string output;
+        std::string root;
         std::string size = "64M";
         uint32_t blocksize = p9::kfs::kDefaultBlockSize;
         std::vector<Mapping> files;
@@ -65,7 +105,8 @@ int main(int argc, char** argv) {
                 if (flag == "--output" || flag == "--image") {
                     if (!output.empty()) usage("output/image specified more than once");
                     output=val;
-                } else if (flag == "--size") size=val;
+                } else if (flag == "--root") root=val;
+                else if (flag == "--size") size=val;
                 else if (flag == "--block-size") blocksize=uint32_t(std::stoul(val));
                 else if (flag == "--file") files.push_back(mapping(val));
                 else if (flag == "--dir") dirs.push_back(val);
@@ -74,14 +115,18 @@ int main(int argc, char** argv) {
             }
         }
         if (output.empty()) usage("missing --output/--image");
-        if (command == "verify" && (force || !dirs.empty() || !executables.empty()))
-            usage("--force, --dir, --executable are create-only options");
+        if (command == "verify" && (force || !root.empty() || !dirs.empty() || !executables.empty()))
+            usage("--root, --force, --dir, --executable are create-only options");
         if (command == "create") {
             p9::kfs::Builder builder;
             for (const auto& d : dirs) builder.directory(d);
             for (const auto& f : files)
                 builder.file(f.guest, read_host(f.host),
                              executables.count(f.guest) ? 0755 : 0644);
+            if (!root.empty()) {
+                auto imported = import_root(builder, root);
+                files.insert(files.end(), imported.begin(), imported.end());
+            }
             builder.write(output, p9::kfs::parse_size(size), blocksize, force);
             std::cout << "KFS image created: " << output << "\n";
         }
