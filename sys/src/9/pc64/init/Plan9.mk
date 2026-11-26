@@ -13,7 +13,7 @@
 
 # Original Plan 9 initcode source with an AMD64 replacement entry, built
 # for AMD64 as a single embedded user text page, not a substitute program.
-INIT_USER_CFLAGS := --target=$(TARGET_TRIPLE) -std=c11 -Os -g \
+INIT_USER_CFLAGS := --target=$(TARGET_TRIPLE) -std=gnu11 -Os -g -nostdlibinc \
     -ffreestanding -fno-builtin -fno-stack-protector -fno-pic \
     -fno-asynchronous-unwind-tables -fno-unwind-tables \
     -fno-exceptions -mno-red-zone -mcmodel=small -fno-plt \

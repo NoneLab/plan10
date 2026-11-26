@@ -10,6 +10,7 @@ my-dir = $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 CLEAR_VARS           := mk/clear-vars.mk
 BUILD_OBJECTS        := mk/build-objects.mk
 BUILD_STATIC_LIBRARY := mk/build-static-library.mk
+BUILD_HEADER_LIBRARY := mk/build-header-library.mk
 
 # Executable policies; the object and archive machinery remains shared.
 BUILD_KERNEL                := mk/build-kernel.mk
@@ -29,3 +30,4 @@ USERSPACE_SYSTEM_STATIC_LIBRARIES ?= libc-plan9
 BOOTSTRAP_SYSTEM_STATIC_LIBRARIES ?= libc-plan9
 
 include mk/dependencies.mk
+include mk/includes.mk

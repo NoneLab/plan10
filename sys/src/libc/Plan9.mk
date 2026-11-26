@@ -228,6 +228,8 @@ PLAN9_USER_LIBC_OBJS := \
 include $(CLEAR_VARS)
 LOCAL_MODULE := libc-plan9
 LOCAL_TARGET := userspace
+# Public native Plan 9 ABI headers; selected via system-library dependencies.
+LOCAL_EXPORT_C_INCLUDE_DIRS := amd64/include sys/include
 LOCAL_BUILT_OBJECTS := $(PLAN9_USER_LIBC_OBJS)
 include $(BUILD_STATIC_LIBRARY)
 PLAN9_LIBC_ARCHIVE := $(LOCAL_BUILT_ARCHIVE)

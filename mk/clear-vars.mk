@@ -9,6 +9,10 @@ LOCAL_SRC_DIR :=
 LOCAL_OBJ_DIR :=
 
 # Compiler configuration
+LOCAL_C_INCLUDES :=
+LOCAL_EXPORT_C_INCLUDE_DIRS :=
+# Optional prerequisites for generated public headers.
+LOCAL_EXPORT_C_INCLUDE_DEPS :=
 LOCAL_CFLAGS :=
 LOCAL_CXXFLAGS :=
 LOCAL_ASFLAGS :=
@@ -19,6 +23,9 @@ LOCAL_AS_COMPILER :=
 # Dependency and runtime selection
 LOCAL_OBJECT_LIBRARIES :=
 LOCAL_STATIC_LIBRARIES :=
+LOCAL_HEADER_LIBRARIES :=
+LOCAL_EXPORT_STATIC_LIBRARY_HEADERS :=
+LOCAL_EXPORT_HEADER_LIBRARY_HEADERS :=
 # 'default' selects the appropriate executable backend's runtime archives.
 # LOCAL_SYSTEM_STATIC_LIBRARIES := (empty) disables automatic runtime linking.
 LOCAL_SYSTEM_STATIC_LIBRARIES := default

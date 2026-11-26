@@ -30,7 +30,9 @@ else ifeq ($(LOCAL_TARGET),host)
 LOCAL_C_COMPILER := $(if $(LOCAL_C_COMPILER),$(LOCAL_C_COMPILER),$(if $(HOST_CC),$(HOST_CC),$(CLANG)))
 LOCAL_CXX_COMPILER := $(if $(LOCAL_CXX_COMPILER),$(LOCAL_CXX_COMPILER),$(if $(HOST_CXX),$(HOST_CXX),$(CLANGPP)))
 endif
+_p9_archive_compile := 1
 include $(BUILD_OBJECTS)
+_p9_archive_compile :=
 endif
 
 # 2. Collect only this module's objects (not its dependency archives).
@@ -54,6 +56,9 @@ _p9_archive_sanity := $(call p9-resolve-static-libs,$(_p9_archive_dependencies),
 P9_ARCHIVE.$(_p9_archive_name) := $(_p9_archive_output)
 P9_ARCHIVE_TARGET.$(_p9_archive_name) := $(_p9_archive_target)
 P9_ARCHIVE_DEPS.$(_p9_archive_name) := $(_p9_archive_dependencies)
+
+_p9_export_kind := static
+include mk/register-exports.mk
 
 # 4. Build .a from direct objects. Always recreate to drop removed members.
 $(_p9_archive_output): $(_p9_archive_objects)

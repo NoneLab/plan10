@@ -24,7 +24,7 @@ abi-check: $(BUILD_DIR)/obj/abi.o
 # On-disk 6.out decoding is checked against native and malformed headers.
 $(BUILD_DIR)/tests/exec64: tests/amd64/exec64.c sys/src/9/pc64/exec64.c
 	@mkdir -p "$(dir $@)"
-	$(CLANG) -std=c11 -O2 -Isys/include -Iamd64/include -Isys/src/9/pc64 $^ -o "$@"
+	$(CLANG) -std=gnu11 -O2 -Isys/include -Iamd64/include -Isys/src/9/pc64 $^ -o "$@"
 
 .PHONY: exec64-check
 exec64-check: $(BUILD_DIR)/tests/exec64
@@ -35,7 +35,7 @@ check: exec64-check
 # Host tests use the same implementation files with a substitute physical
 # page allocator; they never run privileged CPU instructions from userspace.
 HOST_TEST_FLAGS := \
-    -std=c11 \
+    -std=gnu11 \
     -O2 \
     -ffreestanding \
     -fno-builtin \
@@ -56,7 +56,7 @@ $(BUILD_DIR)/tests/label: tests/amd64/label.c sys/src/9/pc64/lowlevel.S
 
 $(BUILD_DIR)/tests/atomic: tests/amd64/atomic.c sys/src/9/pc64/atomic.S
 	@mkdir -p "$(dir $@)"
-	$(CLANG) -std=c11 -O2 -no-pie $^ -o "$@"
+	$(CLANG) -std=gnu11 -O2 -no-pie $^ -o "$@"
 
 boot-entry-check: $(BUILD_DIR)/obj/pc64/entry.o
 	$(PYTHON) tests/amd64/boot_entry.py "$<"

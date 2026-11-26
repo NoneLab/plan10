@@ -22,7 +22,8 @@ ARCH_INCLUDES := \
 
 ARCH_CFLAGS := \
     --target=$(TARGET_TRIPLE) \
-    -std=c11 \
+    -std=gnu11 \
+	-nostdlibinc \
     -O1 \
     -ffreestanding \
     -fno-builtin \
@@ -45,7 +46,7 @@ ARCH_CFLAGS := \
 ARCH_CPPFLAGS := $(ARCH_INCLUDES)
 
 # Native boot and userspace libraries share one AMD64 freestanding ABI.
-BOOT64_USER_CFLAGS := --target=$(TARGET_TRIPLE) -std=c11 -O1 -g -MMD -MP \
+BOOT64_USER_CFLAGS := --target=$(TARGET_TRIPLE) -std=gnu11 -O1 -g -MMD -MP -nostdlibinc \
     -ffreestanding -fno-builtin -fno-stack-protector -fno-pic \
     -fno-plt -fno-asynchronous-unwind-tables -mno-red-zone \
     -ffunction-sections -fdata-sections -DP9_NATIVE_BOOT64 \
@@ -198,6 +199,7 @@ $(SYSCALL_TABLE_HDR): \
 $(BUILD_DIR)/obj/pc64/syscall64.o: \
     $(SYSCALL_TABLE_HDR)
 
+include sys/src/lib10c/Plan9.mk
 
 # Source-local modules share this single dependency graph.
 # Include order matters: the machine ABI is set before user libraries.
@@ -233,6 +235,7 @@ include sys/src/cmd/disk/kfs/Plan9.mk
 
 include sys/src/cmd/Plan9.mk
 include sys/src/cmd/rc/Plan9.mk
+include sys/src/cmd/newhello/Plan9.mk
 include rc/lib/Plan9.mk
 include tools/kfs/Plan9.mk
 

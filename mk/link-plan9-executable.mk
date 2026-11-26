@@ -18,6 +18,21 @@ $(error $(LOCAL_MODULE): choose LOCAL_CRT or LOCAL_CRT_OBJECTS, not both)
 endif
 endif
 
+# Resolve runtime selection before compilation, not only before linking.
+# This allows a change in LOCAL_SYSTEM_STATIC_LIBRARIES to switch libc headers.
+ifneq ($(filter default,$(LOCAL_SYSTEM_STATIC_LIBRARIES)),)
+ifneq ($(words $(LOCAL_SYSTEM_STATIC_LIBRARIES)),1)
+$(error $(LOCAL_MODULE): 'default' must be the only system library selector)
+endif
+endif
+ifneq ($(filter libc-%,$(LOCAL_STATIC_LIBRARIES)),)
+$(error $(LOCAL_MODULE): put libc modules in LOCAL_SYSTEM_STATIC_LIBRARIES)
+endif
+_p9_user_sys_libs := $(strip \
+    $(if $(filter default,$(LOCAL_SYSTEM_STATIC_LIBRARIES)), \
+        $(_p9_default_system_libs), \
+        $(LOCAL_SYSTEM_STATIC_LIBRARIES)))
+
 # 2. Compile any sources declared directly on this executable.
 #    Existing modules may instead supply LOCAL_EXTRA_OBJECTS.
 ifneq ($(strip $(LOCAL_SRC_FILES)),)
@@ -27,7 +42,9 @@ endif
 ifeq ($(strip $(LOCAL_ASFLAGS)),)
 LOCAL_ASFLAGS := --target=$(TARGET_TRIPLE) -mno-red-zone
 endif
+P9_COMPILE_EXTRA_LIBRARIES := $(_p9_user_sys_libs)
 include $(BUILD_OBJECTS)
+P9_COMPILE_EXTRA_LIBRARIES :=
 endif
 
 # 3. Resolve CRT, application objects and dependent libraries.
@@ -49,20 +66,7 @@ endif
 # Application archives and system runtime archives have separate contracts.
 # Explicit LOCAL_SYSTEM_STATIC_LIBRARIES replaces the backend default, rather
 # than appending another libc. Empty means no implicit runtime archives.
-ifneq ($(filter default,$(LOCAL_SYSTEM_STATIC_LIBRARIES)),)
-ifneq ($(words $(LOCAL_SYSTEM_STATIC_LIBRARIES)),1)
-$(error $(LOCAL_MODULE): 'default' must be the only system library selector)
-endif
-endif
-ifneq ($(filter libc-%,$(LOCAL_STATIC_LIBRARIES)),)
-$(error $(LOCAL_MODULE): put libc modules in LOCAL_SYSTEM_STATIC_LIBRARIES)
-endif
-
 _p9_user_app_libs := $(strip $(LOCAL_STATIC_LIBRARIES))
-_p9_user_sys_libs := $(strip \
-    $(if $(filter default,$(LOCAL_SYSTEM_STATIC_LIBRARIES)), \
-        $(_p9_default_system_libs), \
-        $(LOCAL_SYSTEM_STATIC_LIBRARIES)))
 _p9_user_app_archives := $(call p9-resolve-static-libs,$(_p9_user_app_libs),userspace)
 _p9_user_sys_archives := $(call p9-resolve-static-libs,$(_p9_user_sys_libs),userspace)
 _p9_user_archives := $(strip $(_p9_user_app_archives) $(_p9_user_sys_archives))
