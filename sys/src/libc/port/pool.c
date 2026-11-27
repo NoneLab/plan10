@@ -38,9 +38,13 @@
  * to merge it with its two neighbors via p->merge.
  */
 
+#ifdef P9_LIB9C_POOL
+#include "../../lib9c/malloc/pool_compat.h"
+#else
 #include <u.h>
 #include <libc.h>
 #include <pool.h>
+#endif
 
 typedef struct Alloc	Alloc;
 typedef struct Arena	Arena;

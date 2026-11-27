@@ -207,6 +207,7 @@ $(BUILD_DIR)/obj/pc64/syscall64.o: \
     $(SYSCALL_TABLE_HDR)
 
 include sys/src/lib10c/Plan9.mk
+include sys/src/lib9c/Plan9.mk
 
 # Source-local modules share this single dependency graph.
 # Include order matters: the machine ABI is set before user libraries.
