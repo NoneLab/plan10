@@ -2,12 +2,44 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
+LOCAL_MODULE := crt0-lib10c-amd64
+LOCAL_TARGET := userspace
+
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/lib10c/crt0
+
+LOCAL_SRC_FILES := \
+    runtime/amd64/crt0.S
+
+LOCAL_ASFLAGS := --target=$(TARGET_TRIPLE) -mno-red-zone
+
+include $(BUILD_OBJECTS)
+
+
+include $(CLEAR_VARS)
+
 LOCAL_MODULE := lib10c
 LOCAL_TARGET := userspace
 
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/lib10c
 
+OPENBSD_CRYPT_SRCS := \
+    openbsd/crypt/arc4random.c \
+    openbsd/crypt/arc4random_uniform.c \
+    openbsd/crypt/bcrypt.c \
+    openbsd/crypt/blowfish.c \
+    openbsd/crypt/crypt.c \
+    openbsd/crypt/cryptutil.c
+
 OPENBSD_STDLIB_SRCS := \
+    openbsd/stdlib/_Exit.c \
+    openbsd/stdlib/abs.c \
+    openbsd/stdlib/atexit.c \
+    openbsd/stdlib/div.c \
+    openbsd/stdlib/exit.c \
+    openbsd/stdlib/getenv.c \
+    openbsd/stdlib/labs.c \
+    openbsd/stdlib/ldiv.c \
+    openbsd/stdlib/recallocarray.c \
     openbsd/stdlib/a64l.c \
     openbsd/stdlib/abort.c \
     openbsd/stdlib/atoi.c \
@@ -171,6 +203,131 @@ OPENBSD_STDIO_SRCS := \
     openbsd/stdio/fseterr.c \
     openbsd/stdio/fwriting.c
 
+OPENBSD_STRING_SRCS := \
+	openbsd/string/bcmp.c \
+    openbsd/string/bcopy.c \
+    openbsd/string/bzero.c \
+    openbsd/string/ffs.c \
+    openbsd/string/memchr.c \
+    openbsd/string/memcmp.c \
+    openbsd/string/memcpy.c \
+    openbsd/string/memmove.c \
+    openbsd/string/memset.c \
+    openbsd/string/strcat.c \
+    openbsd/string/strchr.c \
+    openbsd/string/strcmp.c \
+    openbsd/string/strcpy.c \
+    openbsd/string/strcspn.c \
+    openbsd/string/strlen.c \
+    openbsd/string/strlcat.c \
+    openbsd/string/strlcpy.c \
+    openbsd/string/strncat.c \
+    openbsd/string/strncmp.c \
+    openbsd/string/strncpy.c \
+    openbsd/string/strpbrk.c \
+    openbsd/string/strrchr.c \
+    openbsd/string/strsep.c \
+    openbsd/string/strspn.c \
+    openbsd/string/strstr.c \
+    openbsd/string/swab.c \
+    openbsd/string/explicit_bzero.c \
+    openbsd/string/ffsl.c \
+    openbsd/string/ffsll.c \
+    openbsd/string/memccpy.c \
+    openbsd/string/memmem.c \
+    openbsd/string/memrchr.c \
+    openbsd/string/stpcpy.c \
+    openbsd/string/stpncpy.c \
+    openbsd/string/strcasecmp.c \
+    openbsd/string/strcasecmp_l.c \
+    openbsd/string/strcasestr.c \
+    openbsd/string/strcoll.c \
+    openbsd/string/strcoll_l.c \
+    openbsd/string/strdup.c \
+    openbsd/string/strerror.c \
+    openbsd/string/strerror_l.c \
+    openbsd/string/strerror_r.c \
+    openbsd/string/strmode.c \
+    openbsd/string/strndup.c \
+    openbsd/string/strnlen.c \
+    openbsd/string/strsignal.c \
+    openbsd/string/strtok.c \
+    openbsd/string/strxfrm.c \
+    openbsd/string/strxfrm_l.c \
+    openbsd/string/timingsafe_bcmp.c \
+    openbsd/string/timingsafe_memcmp.c \
+    openbsd/string/wcscat.c \
+    openbsd/string/wcschr.c \
+    openbsd/string/wcscmp.c \
+    openbsd/string/wcscpy.c \
+    openbsd/string/wcscspn.c \
+    openbsd/string/wcslcat.c \
+    openbsd/string/wcslcpy.c \
+    openbsd/string/wcslen.c \
+    openbsd/string/wcsncat.c \
+    openbsd/string/wcsncmp.c \
+    openbsd/string/wcsncpy.c \
+    openbsd/string/wcsnlen.c \
+    openbsd/string/wcspbrk.c \
+    openbsd/string/wcsrchr.c \
+    openbsd/string/wcsspn.c \
+    openbsd/string/wcsstr.c \
+    openbsd/string/wcstok.c \
+    openbsd/string/wcswcs.c \
+    openbsd/string/wcswidth.c \
+    openbsd/string/wmemchr.c \
+    openbsd/string/wmemcmp.c \
+    openbsd/string/wmemcpy.c \
+    openbsd/string/wmemmove.c \
+    openbsd/string/wmemset.c \
+    openbsd/string/wcsdup.c \
+    openbsd/string/wcscasecmp.c \
+    openbsd/string/wcscasecmp_l.c
+
+OPENBSD_GEN_SRCS := \
+    openbsd/gen/assert.c \
+    openbsd/gen/basename.c \
+    openbsd/gen/ctype_.c \
+    openbsd/gen/dirname.c \
+    openbsd/gen/err.c \
+    openbsd/gen/errc.c \
+    openbsd/gen/errlist.c \
+    openbsd/gen/errx.c \
+    openbsd/gen/fpclassify.c \
+    openbsd/gen/frexp.c \
+    openbsd/gen/getbsize.c \
+    openbsd/gen/getprogname.c \
+    openbsd/gen/isatty.c \
+    openbsd/gen/isctype.c \
+    openbsd/gen/isfinite.c \
+    openbsd/gen/isinf.c \
+    openbsd/gen/isnan.c \
+    openbsd/gen/isnormal.c \
+    openbsd/gen/ldexp.c \
+    openbsd/gen/modf.c \
+    openbsd/gen/raise.c \
+    openbsd/gen/setprogname.c \
+    openbsd/gen/siglist.c \
+    openbsd/gen/signame.c \
+    openbsd/gen/signbit.c \
+    openbsd/gen/sigsetops.c \
+    openbsd/gen/syslog.c \
+    openbsd/gen/syslog_r.c \
+    openbsd/gen/tolower_.c \
+    openbsd/gen/toupper_.c \
+    openbsd/gen/tree.c \
+    openbsd/gen/unvis.c \
+    openbsd/gen/verr.c \
+    openbsd/gen/verrc.c \
+    openbsd/gen/verrx.c \
+    openbsd/gen/vis.c \
+    openbsd/gen/vwarn.c \
+    openbsd/gen/vwarnc.c \
+    openbsd/gen/vwarnx.c \
+    openbsd/gen/warn.c \
+    openbsd/gen/warnc.c \
+    openbsd/gen/warnx.c
+
 OPENBSD_GDTOA_SRCS := \
 	openbsd/gdtoa/dmisc.c \
     openbsd/gdtoa/dtoa.c \
@@ -190,20 +347,82 @@ OPENBSD_GDTOA_SRCS := \
     openbsd/gdtoa/sum.c \
     openbsd/gdtoa/ulp.c
 
+OPENBSD_SYS_SRCS := \
+    openbsd/sys/canceled.c \
+    openbsd/sys/microtime.c \
+    openbsd/sys/posix_madvise.c \
+    openbsd/sys/pthread_sigmask.c \
+    openbsd/sys/ptrace.c \
+    openbsd/sys/semctl.c \
+    openbsd/sys/stack_protector.c \
+    openbsd/sys/timer_create.c \
+    openbsd/sys/timer_delete.c \
+    openbsd/sys/timer_getoverrun.c \
+    openbsd/sys/timer_gettime.c \
+    openbsd/sys/timer_settime.c \
+    openbsd/sys/w_accept.c \
+    openbsd/sys/w_accept4.c \
+    openbsd/sys/w_clock_gettime.c \
+    openbsd/sys/w_closefrom.c \
+    openbsd/sys/w_connect.c \
+    openbsd/sys/w_fork.c \
+    openbsd/sys/w_fsync.c \
+    openbsd/sys/w_gettimeofday.c \
+    openbsd/sys/w_msgrcv.c \
+    openbsd/sys/w_msgsnd.c \
+    openbsd/sys/w_msync.c \
+    openbsd/sys/w_nanosleep.c \
+    openbsd/sys/w_open.c \
+    openbsd/sys/w_openat.c \
+    openbsd/sys/w_poll.c \
+    openbsd/sys/w_ppoll.c \
+    openbsd/sys/w_pread.c \
+    openbsd/sys/w_preadv.c \
+    openbsd/sys/w_pselect.c \
+    openbsd/sys/w_pwrite.c \
+    openbsd/sys/w_pwritev.c \
+    openbsd/sys/w_readv.c \
+    openbsd/sys/w_recvfrom.c \
+    openbsd/sys/w_recvmmsg.c \
+    openbsd/sys/w_recvmsg.c \
+    openbsd/sys/w_select.c \
+    openbsd/sys/w_sendmmsg.c \
+    openbsd/sys/w_sendmsg.c \
+    openbsd/sys/w_sendto.c \
+    openbsd/sys/w_sigaction.c \
+    openbsd/sys/w_sigprocmask.c \
+    openbsd/sys/w_sigsuspend.c \
+    openbsd/sys/w_vfork.c \
+    openbsd/sys/w_wait4.c \
+    openbsd/sys/w_waitid.c 
+
 PLAN9_SRCS := \
-	src/errno.c
+	src/errno.c \
+	src/thread_callbacks.c \
+	src/native_bootstrap_control.c \
+    src/native_bootstrap_entropy.c \
+    src/native_bootstrap_io.c \
+    src/native_bootstrap_signal.c \
+    src/native_bootstrap_thread.c \
+    src/native_bootstrap_vm.c \
+	runtime/crti.c
 
 LOCAL_SRC_FILES := \
+	$(OPENBSD_CRYPT_SRCS) \
 	$(OPENBSD_STDLIB_SRCS) \
 	$(OPENBSD_STDIO_SRCS) \
+	$(OPENBSD_STRING_SRCS) \
+	$(OPENBSD_GEN_SRCS) \
 	$(OPENBSD_AMD64_GDTOA_SRCS) \
 	$(OPENBSD_GDTOA_SRCS) \
+	$(OPENBSD_SYS_SRCS) \
 	$(PLAN9_SRCS)
 
 LOCAL_C_INCLUDES := \
 					$(LOCAL_PATH)/amd64 		\
 					$(LOCAL_PATH)/hidden		\
 					$(LOCAL_PATH)/private		\
+					$(LOCAL_PATH)/openbsd/		\
 					$(LOCAL_PATH)/openbsd/gdtoa \
 					$(LOCAL_PATH)/amd64/gdtoa 	\
 					$(LOCAL_PATH)/include 		\
@@ -212,8 +431,21 @@ LOCAL_C_INCLUDES := \
 LOCAL_EXPORT_C_INCLUDE_DIRS := 	$(LOCAL_PATH)/amd64 		\
 								$(LOCAL_PATH)/include		
 
+# Compile the existing Plan 9 syscall entry into this archive. Do not link
+# libc-plan9: its public interfaces can conflict with the OpenBSD ABI.
+LOCAL_SRC_FILES += \
+    src/native_syscall.c \
+    src/native_io.c \
+    src/native_runtime.c \
+    ../libc/amd64/syscall.S
+
+LOCAL_ASFLAGS += --target=$(TARGET_TRIPLE) -mno-red-zone
+
 LOCAL_CFLAGS := \
 	$(BOOT64_USER_CFLAGS) \
+	-D__LIBC__ \
+	-DMALLOC_SMALL \
+	-DP9_LIB10C_BOOTSTRAP \
 	-include $(LOCAL_PATH)/private/namespace.h
 
 include $(BUILD_STATIC_LIBRARY)

@@ -10,6 +10,7 @@ system. A component describes its inputs through `LOCAL_*` and selects one
 | --- | --- | --- |
 | `BUILD_OBJECTS` | Source or CRT object module | `.o` |
 | `BUILD_STATIC_LIBRARY` | Archive for any target ABI | `.a` |
+| `BUILD_HEADER_LIBRARY` | Public header provider for a target ABI | No output |
 | `BUILD_KERNEL` | Plan 9 kernel | ELF64 + physical Multiboot image |
 | `BUILD_BOOTSTRAP_EXECUTABLE` | `boot`, `kfs`, `init` | native `6.out` |
 | `BUILD_USER_EXECUTABLE` | `rc`, regular userspace programs | native `6.out` |
@@ -80,10 +81,11 @@ The executable linker orders application archives first, followed by system
 runtime archives. Both groups are registered through the same
 `BUILD_STATIC_LIBRARY` backend and validated as **userspace** archives.
 `LOCAL_LIBC` and the old per-libc CRT fallback are removed: the common CRT is
-independent of the selected libc implementation. Selecting a different libc
-archive **does not automatically switch include directories or recompile
-libraries**: declare any ABI-specific compile flags and use distinct object
-paths for different header/ABI profiles when adding the experimental libc.
+independent of the selected libc implementation.
+U3.10 also imports the selected runtime archive's exported header directories
+when compiling a native executable. ABI-specific options other than header
+search paths still require explicit flags and separate object directories
+when compiling reusable libraries for distinct libc profiles.
 
 ### Migrated native applications
 
@@ -190,3 +192,53 @@ make kfs-bootfs-selftest
 The backend fixtures check system runtime selection, archive dependency
 resolution, CRT selection and native `6.out` generation. They do **not** prove a complete Plan 9 kernel boot.
 For end-to-end verification, rebuild and boot the native QEMU/KFS image.
+
+
+## 6. Automatic public header propagation (U3.10)
+
+AOSP Platform Android.mk-style includes are **module-scoped**:
+
+| Variable | Contract |
+| --- | --- |
+| `LOCAL_C_INCLUDES` | Include paths private to the current module |
+| `LOCAL_EXPORT_C_INCLUDE_DIRS` | Public directories visible to direct users |
+| `LOCAL_HEADER_LIBRARIES` | Header-only providers without archive linkage |
+| `LOCAL_EXPORT_STATIC_LIBRARY_HEADERS` | Explicitly re-export a directly used static library's headers |
+| `LOCAL_EXPORT_HEADER_LIBRARY_HEADERS` | Explicitly re-export a directly used header library's headers |
+| `LOCAL_EXPORT_C_INCLUDE_DEPS` | Build prerequisites for generated public headers |
+
+`BUILD_HEADER_LIBRARY` declares a `kernel`, `userspace` or `host` header-only
+provider. Registered providers must appear before consumers, as with static
+archives. The module registry checks missing modules and target ABI mismatches.
+Transitive headers are **not** automatically public: re-export explicitly.
+
+```make
+LOCAL_PATH := sys/src/libc-experimental
+include $(CLEAR_VARS)
+LOCAL_MODULE := libc-experimental
+LOCAL_TARGET := userspace
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/libc-experimental
+LOCAL_SRC_FILES := internal/stdio.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/internal
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/include
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := user-app
+LOCAL_TARGET := userspace
+LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/user-app
+LOCAL_SRC_FILES := app.c
+LOCAL_SYSTEM_STATIC_LIBRARIES := libc-experimental
+include $(BUILD_USER_EXECUTABLE)
+```
+
+The compiler sees private includes first, then the selected dependency export
+paths, then existing module flags (`LOCAL_CFLAGS`). Thus the selected libc can
+shadow legacy Plan 9 include paths without changing the known-good boot path.
+Objects have `.d` dependencies and a content-comparing `.p9-flags-*` stamp;
+changing the effective compiler options or exported include paths recompiles
+those objects. Build paths with spaces or shell quotes are not supported.
+
+The linker still consumes ordinary/static/system library declarations. Header
+libraries do not contribute objects or archives. `BUILD_HEADER_LIBRARY` does
+not create an output file. Archive re-exports do not affect archive link order.

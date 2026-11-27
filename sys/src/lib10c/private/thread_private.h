@@ -146,8 +146,8 @@ __END_HIDDEN_DECLS
 
 #define _THREAD_PRIVATE_MUTEX_LOCK(name)		do {} while (0)
 #define _THREAD_PRIVATE_MUTEX_UNLOCK(name)		do {} while (0)
-#define _THREAD_PRIVATE(keyname, storage, error)	&(storage)
-#define _THREAD_PRIVATE_DT(keyname, storage, dt, error)	&(storage)
+#define _THREAD_PRIVATE(keyname, storage, error)	(void*)&(storage)
+#define _THREAD_PRIVATE_DT(keyname, storage, dt, error)	(void*)&(storage)
 #define _MUTEX_LOCK(mutex)				do {} while (0)
 #define _MUTEX_UNLOCK(mutex)				do {} while (0)
 #define _MUTEX_DESTROY(mutex)				do {} while (0)

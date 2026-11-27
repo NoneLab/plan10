@@ -16,11 +16,42 @@ SECTIONS {
         *(.text .text.*)
         *(.rodata .rodata.*)
     } : text
+
+    .init ALIGN(16) : {
+        KEEP(*(.preinit))
+        KEEP(*(.init))
+    } : text
+
+    .fini ALIGN(16) : {
+        KEEP(*(.fini))
+    } : text
+
     . = ALIGN(4096);
 
     .data : {
         *(.data .data.*)
-    } :data
+    } : data
+
+    .preinit_array ALIGN(8) : {
+        HIDDEN(__preinit_array_start = .);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.preinit_array.*)))
+        KEEP(*(.preinit_array))
+        HIDDEN(__preinit_array_end = .);
+    } : data
+
+    .init_array ALIGN(8) : {
+        HIDDEN(__init_array_start = .);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.init_array.*)))
+        KEEP(*(.init_array))
+        HIDDEN(__init_array_end = .);
+    } : data
+
+    .fini_array ALIGN(8) : {
+        HIDDEN(__fini_array_start = .);
+        KEEP(*(SORT_BY_INIT_PRIORITY(.fini_array.*)))
+        KEEP(*(.fini_array))
+        HIDDEN(__fini_array_end = .);
+    } : data
 
     .bss (NOLOAD) : {
         *(.bss .bss.* COMMON)

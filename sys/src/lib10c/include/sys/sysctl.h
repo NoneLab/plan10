@@ -42,6 +42,33 @@
 // #include <uvm/uvmexp.h>
 
 /*
+ * Temparary Virtual Memory MIB identifiers
+ * Compatible with OpenBSD's syscall namespace
+ * 
+ */
+
+#define VM_METER        1
+#define VM_LOADAVG      2
+#define VM_PSSTRINGS    3
+#define VM_UVMEXP       4
+#define VM_SWAPENCRYPT  5
+#define VM_NKMEMPAGES   6
+#define VM_ANONMIN      7
+#define VM_VTEXTMIN     8
+#define VM_VNODEMIN     9
+#define VM_MAXSLP       10
+#define VM_USPACE       11
+#define VM_MALLOC_CONF  12
+#define VM_MAXID        13
+
+/*
+ * CTL_VM / VM_PSSTRINGS response.
+ */
+ struct _ps_strings {
+    void *val;
+};
+
+/*
  * Definitions for sysctl call.  The sysctl call uses a hierarchical name
  * for objects that can be examined or modified.  The name is expressed as
  * a sequence of integers.  Like a file path name, the meaning of each

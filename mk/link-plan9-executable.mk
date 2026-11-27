@@ -39,6 +39,9 @@ ifneq ($(strip $(LOCAL_SRC_FILES)),)
 ifeq ($(strip $(LOCAL_CFLAGS)),)
 LOCAL_CFLAGS := $(BOOT64_USER_CFLAGS)
 endif
+ifeq ($(strip $(LOCAL_CXXFLAGS)),)
+LOCAL_CXXFLAGS := $(BOOT64_USER_CXXFLAGS)
+endif
 ifeq ($(strip $(LOCAL_ASFLAGS)),)
 LOCAL_ASFLAGS := --target=$(TARGET_TRIPLE) -mno-red-zone
 endif

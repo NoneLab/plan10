@@ -504,8 +504,7 @@ omalloc_init(void)
 	const char *p;
 	char *q, b[16];
 	int i, j;
-	// const int mib[2] = { CTL_VM, VM_MALLOC_CONF };
-	const int mib[2] = { CTL_VM, 0 };
+	const int mib[2] = { CTL_VM, VM_MALLOC_CONF };
 	size_t sb;
 
 	/*

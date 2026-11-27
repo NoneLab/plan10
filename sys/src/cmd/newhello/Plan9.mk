@@ -5,13 +5,14 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := hello
 LOCAL_TARGET := userspace
 
-LOCAL_SRC_FILES := hello.c
+LOCAL_SRC_FILES := hello.cc
 LOCAL_OBJ_DIR := $(BUILD_DIR)/obj/hello
 
 LOCAL_CFLAGS := \
     $(BOOT64_USER_CFLAGS) \
     -nostdlibinc
 
+LOCAL_CRT := crt0-lib10c-amd64
 LOCAL_SYSTEM_STATIC_LIBRARIES := lib10c
 
 LOCAL_INSTALL_IMAGE := kfs

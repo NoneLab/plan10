@@ -46,13 +46,20 @@ ARCH_CFLAGS := \
 ARCH_CPPFLAGS := $(ARCH_INCLUDES)
 
 # Native boot and userspace libraries share one AMD64 freestanding ABI.
-BOOT64_USER_CFLAGS := --target=$(TARGET_TRIPLE) -std=gnu11 -O1 -g -MMD -MP -nostdlibinc \
+BOOT64_USER_COMMON_FLAGS := --target=$(TARGET_TRIPLE) -O1 -g -nostdlibinc \
     -ffreestanding -fno-builtin -fno-stack-protector -fno-pic \
     -fno-plt -fno-asynchronous-unwind-tables -mno-red-zone \
     -ffunction-sections -fdata-sections -DP9_NATIVE_BOOT64 \
-    -Iamd64/include -Isys/include -Isys/src/9/boot \
-    -Isys/src/libc/9syscall -Isys/src/libc/amd64
+    -ffunction-sections -fdata-sections -DP9_NATIVE_BOOT64
 
+# Legacy Plan 9 C header paths; C++ uses the selected runtime's exports.
+BOOT64_USER_CFLAGS := $(BOOT64_USER_COMMON_FLAGS) -std=gnu11 -MMD -MP \
+     -Iamd64/include -Isys/include -Isys/src/9/boot \
+     -Isys/src/libc/9syscall -Isys/src/libc/amd64
+ 
+# Bootstrap C++ without a host C++ library or exception/RTTI runtime.
+BOOT64_USER_CXXFLAGS := $(BOOT64_USER_COMMON_FLAGS) -std=gnu++20 \
+    -nostdinc++ -fno-exceptions -fno-rtti
 
 # Embedded original /boot/boot image (optional).
 BOOT64_IMAGE ?= $(BUILD_DIR)/boot64/boot.6.out
